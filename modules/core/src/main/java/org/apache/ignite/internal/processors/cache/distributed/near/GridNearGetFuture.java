@@ -599,12 +599,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
             catch (GridCacheEntryRemovedException ignored) {
                 entry = allowLocRead ? near.peekEx(key) : null;
             }
-            catch (GridCacheFilterFailedException e) {
-                if (log.isDebugEnabled())
-                    log.debug("Filter validation failed for entry: " + e);
-
-                break;
-            }
             finally {
                 if (entry != null && !reload && tx == null)
                     cctx.evicts().touch(entry, topVer);

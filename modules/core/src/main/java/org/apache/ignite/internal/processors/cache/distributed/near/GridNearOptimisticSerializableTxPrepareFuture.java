@@ -491,9 +491,9 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
             return;
         }
 
-        cctx.mvcc().recheckPendingLocks();
-
         tx.addEntryMapping(mappings.values());
+
+        cctx.mvcc().recheckPendingLocks();
 
         tx.transactionNodes(txMapping.transactionNodes());
 

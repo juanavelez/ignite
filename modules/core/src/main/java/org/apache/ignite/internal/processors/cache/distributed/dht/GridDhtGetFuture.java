@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
+import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.CacheObject;
@@ -294,56 +295,60 @@ public final class GridDhtGetFuture<K, V> extends GridCompoundIdentityFuture<Col
 
         GridCompoundFuture<Boolean, Boolean> txFut = null;
 
-        for (Map.Entry<KeyCacheObject, Boolean> k : keys.entrySet()) {
-            while (true) {
-                GridDhtCacheEntry e = cache().entryExx(k.getKey(), topVer);
+        ClusterNode readerNode = cctx.discovery().node(reader);
 
-                try {
-                    GridCacheEntryInfo info = e.info();
+        if (readerNode != null && !readerNode.isLocal() && cctx.discovery().cacheNearNode(readerNode, cctx.name())) {
+            for (Map.Entry<KeyCacheObject, Boolean> k : keys.entrySet()) {
+                while (true) {
+                    GridDhtCacheEntry e = cache().entryExx(k.getKey(), topVer);
 
-                    // If entry is obsolete.
-                    if (info == null)
-                        continue;
+                    try {
+                        GridCacheEntryInfo info = e.info();
 
-                    boolean addReader = (!e.deleted() && k.getValue() && !skipVals);
+                        // If entry is obsolete.
+                        if (info == null)
+                            continue;
 
-                    if (addReader)
-                        e.unswap(false);
+                        boolean addReader = (!e.deleted() && k.getValue() && !skipVals);
 
-                    // Register reader. If there are active transactions for this entry,
-                    // then will wait for their completion before proceeding.
-                    // TODO: GG-4003:
-                    // TODO: What if any transaction we wait for actually removes this entry?
-                    // TODO: In this case seems like we will be stuck with untracked near entry.
-                    // TODO: To fix, check that reader is contained in the list of readers once
-                    // TODO: again after the returned future completes - if not, try again.
-                    // TODO: Also, why is info read before transactions are complete, and not after?
-                    IgniteInternalFuture<Boolean> f = addReader ? e.addReader(reader, msgId, topVer) : null;
+                        if (addReader)
+                            e.unswap(false);
 
-                    if (f != null) {
-                        if (txFut == null)
-                            txFut = new GridCompoundFuture<>(CU.boolReducer());
+                        // Register reader. If there are active transactions for this entry,
+                        // then will wait for their completion before proceeding.
+                        // TODO: GG-4003:
+                        // TODO: What if any transaction we wait for actually removes this entry?
+                        // TODO: In this case seems like we will be stuck with untracked near entry.
+                        // TODO: To fix, check that reader is contained in the list of readers once
+                        // TODO: again after the returned future completes - if not, try again.
+                        // TODO: Also, why is info read before transactions are complete, and not after?
+                        IgniteInternalFuture<Boolean> f = addReader ? e.addReader(reader, msgId, topVer) : null;
 
-                        txFut.add(f);
+                        if (f != null) {
+                            if (txFut == null)
+                                txFut = new GridCompoundFuture<>(CU.boolReducer());
+
+                            txFut.add(f);
+                        }
+
+                        break;
                     }
-
-                    break;
-                }
-                catch (IgniteCheckedException err) {
-                    return new GridFinishedFuture<>(err);
-                }
-                catch (GridCacheEntryRemovedException ignore) {
-                    if (log.isDebugEnabled())
-                        log.debug("Got removed entry when getting a DHT value: " + e);
-                }
-                finally {
-                    cctx.evicts().touch(e, topVer);
+                    catch (IgniteCheckedException err) {
+                        return new GridFinishedFuture<>(err);
+                    }
+                    catch (GridCacheEntryRemovedException ignore) {
+                        if (log.isDebugEnabled())
+                            log.debug("Got removed entry when getting a DHT value: " + e);
+                    }
+                    finally {
+                        cctx.evicts().touch(e, topVer);
+                    }
                 }
             }
-        }
 
-        if (txFut != null)
-            txFut.markInitialized();
+            if (txFut != null)
+                txFut.markInitialized();
+        }
 
         IgniteInternalFuture<Map<KeyCacheObject, T2<CacheObject, GridCacheVersion>>> fut;
 

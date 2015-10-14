@@ -143,10 +143,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     private AtomicBoolean mapped = new AtomicBoolean(false);
 
     /** Prepare reads. */
-    private Iterable<IgniteTxEntry> reads;
+    private Collection<IgniteTxEntry> reads;
 
     /** Prepare writes. */
-    private Iterable<IgniteTxEntry> writes;
+    private Collection<IgniteTxEntry> writes;
 
     /** Tx nodes. */
     private Map<UUID, Collection<UUID>> txNodes;
@@ -429,9 +429,6 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
             catch (GridCacheEntryRemovedException e) {
                 assert false : "Got entry removed exception while holding transactional lock on entry: " + e;
             }
-            catch (GridCacheFilterFailedException e) {
-                assert false : "Got filter failed exception with fail fast false " + e;
-            }
         }
     }
 
@@ -472,7 +469,8 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
         if (log.isDebugEnabled())
             log.debug("Marking all local candidates as ready: " + this);
 
-        Iterable<IgniteTxEntry> checkEntries = writes;
+        Iterable<IgniteTxEntry> checkEntries =
+            (tx.optimistic() && tx.serializable()) ? F.concat(false, writes, reads) : writes;
 
         for (IgniteTxEntry txEntry : checkEntries) {
             GridCacheContext cacheCtx = txEntry.context();

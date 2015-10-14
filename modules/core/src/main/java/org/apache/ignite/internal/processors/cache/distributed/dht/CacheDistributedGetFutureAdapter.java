@@ -168,7 +168,7 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
 
         rdc.collect(key);
 
-        resC.apply(key, val, ver);
+        resC.apply(key, skipVals ? true : val, ver);
     }
 
     /**

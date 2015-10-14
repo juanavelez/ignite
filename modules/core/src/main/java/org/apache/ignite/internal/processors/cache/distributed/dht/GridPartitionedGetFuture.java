@@ -508,14 +508,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
             catch (GridCacheEntryRemovedException ignored) {
                 // No-op, will retry.
             }
-            catch (GridCacheFilterFailedException e) {
-                if (log.isDebugEnabled())
-                    log.debug("Filter validation failed for entry: " + e);
-
-                colocated.context().evicts().touch(entry, topVer);
-
-                break;
-            }
         }
 
         return remote;

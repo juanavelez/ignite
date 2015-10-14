@@ -468,7 +468,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                             misses.put(key, entry.version());
                         }
                         else
-                            c.apply(key, res.get1(), res.get2());
+                            c.apply(key, skipVals ? true : res.get1(), res.get2());
 
                         break;
                     }
@@ -1413,13 +1413,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
 
                             break;
                         }
-                        catch (GridCacheFilterFailedException e) {
-                            if (log.isDebugEnabled())
-                                log.debug("Filter validation failed for entry: " + txEntry);
-
-                            if (!readCommitted())
-                                txEntry.readValue(e.<V>value());
-                        }
                         catch (GridCacheEntryRemovedException ignored) {
                             txEntry.cached(entryEx(cacheCtx, txEntry.txKey(), topVer));
                         }
@@ -1526,34 +1519,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                     catch (GridCacheEntryRemovedException ignored) {
                         if (log.isDebugEnabled())
                             log.debug("Got removed entry in transaction getAllAsync(..) (will retry): " + key);
-                    }
-                    catch (GridCacheFilterFailedException e) {
-                        if (log.isDebugEnabled())
-                            log.debug("Filter validation failed for entry: " + entry);
-
-                        if (!readCommitted()) {
-                            // Value for which failure occurred.
-                            CacheObject val = e.value();
-
-                            txEntry = addEntry(READ,
-                                val,
-                                null,
-                                null,
-                                entry,
-                                expiryPlc,
-                                CU.empty0(),
-                                false,
-                                -1L,
-                                -1L,
-                                null,
-                                skipStore);
-
-                            // Mark as checked immediately for non-pessimistic.
-                            if (val != null && !pessimistic())
-                                txEntry.markValid();
-                        }
-
-                        break; // While loop.
                     }
                     finally {
                         if (cacheCtx.isNear() && entry != null && readCommitted()) {
@@ -1863,20 +1828,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             cached);
 
                                     txEntry.cached(entryEx(cacheCtx, txKey));
-                                }
-                                catch (GridCacheFilterFailedException e) {
-                                    // Failed value for the filter.
-                                    CacheObject val = e.value();
-
-                                    if (val != null) {
-                                        // If filter fails after lock is acquired, we don't reload,
-                                        // regardless if value is null or not.
-                                        missed.remove(cacheKey);
-
-                                        txEntry.setAndMarkValid(val);
-                                    }
-
-                                    break; // While.
                                 }
                             }
                         }
@@ -2205,11 +2156,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                     entry.context().evicts().touch(entry, topologyVersion());
 
                                     throw e;
-                                }
-                                catch (GridCacheFilterFailedException e) {
-                                    e.printStackTrace();
-
-                                    assert false : "Empty filter failed: " + e;
                                 }
                             }
                             else
@@ -2577,29 +2523,22 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
 
                     if (retval || invoke) {
                         if (!cacheCtx.isNear()) {
-                            try {
-                                if (!hasPrevVal) {
-                                    boolean readThrough =
-                                        (invoke || cacheCtx.loadPreviousValue()) && !txEntry.skipStore();
+                            if (!hasPrevVal) {
+                                boolean readThrough =
+                                    (invoke || cacheCtx.loadPreviousValue()) && !txEntry.skipStore();
 
-                                    v = cached.innerGet(this,
-                                        /*swap*/true,
-                                        readThrough,
-                                        /*failFast*/false,
-                                        /*unmarshal*/true,
-                                        /*metrics*/!invoke,
-                                        /*event*/!invoke && !dht(),
-                                        /*temporary*/false,
-                                        CU.subjectId(this, cctx),
-                                        null,
-                                        resolveTaskName(),
-                                        null);
-                                }
-                            }
-                            catch (GridCacheFilterFailedException e) {
-                                e.printStackTrace();
-
-                                assert false : "Empty filter failed: " + e;
+                                v = cached.innerGet(this,
+                                    /*swap*/true,
+                                    readThrough,
+                                    /*failFast*/false,
+                                    /*unmarshal*/true,
+                                    /*metrics*/!invoke,
+                                    /*event*/!invoke && !dht(),
+                                    /*temporary*/false,
+                                    CU.subjectId(this, cctx),
+                                    null,
+                                    resolveTaskName(),
+                                    null);
                             }
                         }
                         else {

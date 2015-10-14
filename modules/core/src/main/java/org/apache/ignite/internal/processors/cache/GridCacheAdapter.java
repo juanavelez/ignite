@@ -4649,41 +4649,34 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
         boolean deserializePortable)
         throws IgniteCheckedException, GridCacheEntryRemovedException
     {
-        try {
-            CacheObject val = entry.innerGet(
-                null,
-                false,
-                false,
-                false,
-                true,
-                false,
-                false,
-                false,
-                null,
-                null,
-                null,
-                null);
+        CacheObject val = entry.innerGet(
+            null,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null);
 
-            if (val == null)
-                return null;
-
-            KeyCacheObject key = entry.key();
-
-            Object key0 = key.value(ctx.cacheObjectContext(), true);
-            Object val0 = val.value(ctx.cacheObjectContext(), true);
-
-            if (deserializePortable) {
-                key0 = ctx.unwrapPortableIfNeeded(key0, true);
-                val0 = ctx.unwrapPortableIfNeeded(val0, true);
-            }
-
-            return new CacheEntryImpl<>((K)key0, (V)val0, entry.version());
-        }
-        catch (GridCacheFilterFailedException ignore) {
-            assert false;
-
+        if (val == null)
             return null;
+
+        KeyCacheObject key = entry.key();
+
+        Object key0 = key.value(ctx.cacheObjectContext(), true);
+        Object val0 = val.value(ctx.cacheObjectContext(), true);
+
+        if (deserializePortable) {
+            key0 = ctx.unwrapPortableIfNeeded(key0, true);
+            val0 = ctx.unwrapPortableIfNeeded(val0, true);
         }
+
+        return new CacheEntryImpl<>((K)key0, (V)val0, entry.version());
     }
 
     /**

@@ -413,10 +413,6 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                     catch (GridCacheEntryRemovedException ignored) {
                         // No-op, retry.
                     }
-                    catch (GridCacheFilterFailedException ignored) {
-                        // No-op, skip the key.
-                        break;
-                    }
                     catch (GridDhtInvalidPartitionException ignored) {
                         success = false;
 

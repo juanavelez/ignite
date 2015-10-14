@@ -594,10 +594,6 @@ public class GridLocalAtomicCache<K, V> extends GridCacheAdapter<K, V> {
                 catch (GridCacheEntryRemovedException ignored) {
                     // No-op, retry.
                 }
-                catch (GridCacheFilterFailedException ignored) {
-                    // No-op, skip the key.
-                    break;
-                }
                 finally {
                     if (entry != null)
                         ctx.evicts().touch(entry, ctx.affinity().affinityTopologyVersion());
@@ -1281,9 +1277,6 @@ public class GridLocalAtomicCache<K, V> extends GridCacheAdapter<K, V> {
                 }
                 catch (GridCacheEntryRemovedException ignore) {
                     assert false : "Entry cannot become obsolete while holding lock.";
-                }
-                catch (GridCacheFilterFailedException ignore) {
-                    assert false : "Filter should never fail with failFast=false and empty filter.";
                 }
             }
 

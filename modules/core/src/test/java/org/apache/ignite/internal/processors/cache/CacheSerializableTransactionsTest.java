@@ -3079,7 +3079,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                             assertNotNull(cache);
 
-                            ThreadLocalRandom rnd = ThreadLocalRandom.current();
+                            final ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
                             while (U.currentTimeMillis() < stopTime) {
                                 final Map<Integer, Integer> keys = new LinkedHashMap<>();
@@ -3091,10 +3091,20 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                                     if (restart) {
                                         doInTransaction(node, OPTIMISTIC, SERIALIZABLE, new Callable<Void>() {
                                             @Override public Void call() throws Exception {
-                                                if (get)
-                                                    cache.getAll(keys.keySet());
+                                                if (get) {
+                                                    for (Map.Entry<Integer, Integer> e : keys.entrySet()) {
+                                                        if (rnd.nextBoolean()) {
+                                                            cache.get(e.getKey());
 
-                                                cache.putAll(keys);
+                                                            if (rnd.nextBoolean())
+                                                                cache.put(e.getKey(), e.getValue());
+                                                        }
+                                                        else
+                                                            cache.put(e.getKey(), e.getValue());
+                                                    }
+                                                }
+                                                else
+                                                    cache.putAll(keys);
 
                                                 return null;
                                             }
@@ -3102,10 +3112,20 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                                     }
                                     else {
                                         try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
-                                            if (get)
-                                                cache.getAll(keys.keySet());
+                                            if (get) {
+                                                for (Map.Entry<Integer, Integer> e : keys.entrySet()) {
+                                                    if (rnd.nextBoolean()) {
+                                                        cache.get(e.getKey());
 
-                                            cache.putAll(keys);
+                                                        if (rnd.nextBoolean())
+                                                            cache.put(e.getKey(), e.getValue());
+                                                    }
+                                                    else
+                                                        cache.put(e.getKey(), e.getValue());
+                                                }
+                                            }
+                                            else
+                                                cache.putAll(keys);
 
                                             tx.commit();
                                         }

@@ -292,7 +292,6 @@ public interface GridCacheEntryEx {
      * @return Cached value.
      * @throws IgniteCheckedException If loading value failed.
      * @throws GridCacheEntryRemovedException If entry was removed.
-     * @throws GridCacheFilterFailedException If filter failed.
      */
     @Nullable public CacheObject innerGet(@Nullable IgniteInternalTx tx,
         boolean readSwap,
@@ -306,7 +305,7 @@ public interface GridCacheEntryEx {
         Object transformClo,
         String taskName,
         @Nullable IgniteCacheExpiryPolicy expiryPlc)
-        throws IgniteCheckedException, GridCacheEntryRemovedException, GridCacheFilterFailedException;
+        throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**
      * @param tx Cache transaction.

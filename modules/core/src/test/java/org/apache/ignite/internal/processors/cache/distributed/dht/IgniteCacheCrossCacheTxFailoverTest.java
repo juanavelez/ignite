@@ -37,6 +37,7 @@ import org.apache.ignite.internal.IgniteFutureTimeoutCheckedException;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.IgniteKernal;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
@@ -176,7 +177,7 @@ public class IgniteCacheCrossCacheTxFailoverTest extends GridCommonAbstractTest 
     /**
      * @throws Exception If failed.
      */
-    public void _testCrossCacheOptimisticSerializableTxFailover() throws Exception {
+    public void testCrossCacheOptimisticSerializableTxFailover() throws Exception {
         crossCacheTxFailover(PARTITIONED, true, OPTIMISTIC, SERIALIZABLE, TestMemoryMode.HEAP);
     }
 
@@ -432,6 +433,11 @@ public class IgniteCacheCrossCacheTxFailoverTest extends GridCommonAbstractTest 
         @Override public int hashCode() {
             return (int)(key ^ (key >>> 32));
         }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return S.toString(TestKey.class, this);
+        }
     }
 
     /**
@@ -453,6 +459,11 @@ public class IgniteCacheCrossCacheTxFailoverTest extends GridCommonAbstractTest 
          */
         public long value() {
             return val;
+        }
+
+        /** {@inheritDoc} */
+        @Override public String toString() {
+            return S.toString(TestValue.class, this);
         }
     }
 
