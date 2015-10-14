@@ -300,7 +300,7 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
             finished = true;
 
             for (GridCacheAdapter c : grid(id).context().cache().internalCaches()) {
-                GridDhtPartitionDemander.SyncFuture fut = (GridDhtPartitionDemander.SyncFuture)c.preloader().syncFuture();
+                GridDhtPartitionDemander.RebalanceFuture fut = (GridDhtPartitionDemander.RebalanceFuture)c.preloader().rebalanceFuture();
                 if (fut.topologyVersion() == null || !fut.topologyVersion().equals(top)) {
                     finished = false;
 

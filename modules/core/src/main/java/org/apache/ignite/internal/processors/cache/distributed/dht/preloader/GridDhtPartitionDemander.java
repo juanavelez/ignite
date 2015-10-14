@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,7 +96,11 @@ public class GridDhtPartitionDemander {
 
     /** Future for preload mode {@link CacheRebalanceMode#SYNC}. */
     @GridToStringInclude
-    private volatile SyncFuture syncFut;
+    private final GridFutureAdapter syncFut = new GridFutureAdapter();
+
+    /** Rebalance future. */
+    @GridToStringInclude
+    private volatile RebalanceFuture rebalanceFut;
 
     /** Last timeout object. */
     private AtomicReference<GridTimeoutObject> lastTimeoutObj = new AtomicReference<>();
@@ -122,11 +125,13 @@ public class GridDhtPartitionDemander {
 
         boolean enabled = cctx.rebalanceEnabled() && !cctx.kernalContext().clientNode();
 
-        syncFut = new SyncFuture();//Dummy.
+        rebalanceFut = new RebalanceFuture();//Dummy.
 
-        if (!enabled)
+        if (!enabled) {
             // Calling onDone() immediately since preloading is disabled.
+            rebalanceFut.onDone(true);
             syncFut.onDone();
+        }
     }
 
     /**
@@ -139,7 +144,7 @@ public class GridDhtPartitionDemander {
      * Stop.
      */
     void stop() {
-        syncFut.cancel();
+        rebalanceFut.cancel();
 
         lastExchangeFut = null;
 
@@ -151,6 +156,13 @@ public class GridDhtPartitionDemander {
      */
     IgniteInternalFuture<?> syncFuture() {
         return syncFut;
+    }
+
+    /**
+     * @return Rebalance future.
+     */
+    IgniteInternalFuture<Boolean> rebalanceFuture() {
+        return rebalanceFut;
     }
 
     /**
@@ -191,10 +203,10 @@ public class GridDhtPartitionDemander {
      * @param fut Future.
      * @return {@code True} if topology changed.
      */
-    private boolean topologyChanged(SyncFuture fut) {
+    private boolean topologyChanged(RebalanceFuture fut) {
         return
             !cctx.affinity().affinityTopologyVersion().equals(fut.topologyVersion()) || // Topology already changed.
-                fut != syncFut; // Same topology, but dummy exchange forced because of missing partitions.
+                fut != rebalanceFut; // Same topology, but dummy exchange forced because of missing partitions.
     }
 
     /**
@@ -212,12 +224,12 @@ public class GridDhtPartitionDemander {
      * @param name Cache name.
      * @param fut Future.
      */
-    private void waitForCacheRebalancing(String name, SyncFuture fut) {
+    private void waitForCacheRebalancing(String name, RebalanceFuture fut) {
         if (log.isDebugEnabled())
             log.debug("Waiting for " + name + " cache rebalancing [cacheName=" + cctx.name() + ']');
 
         try {
-            SyncFuture wFut = (SyncFuture)cctx.kernalContext().cache().internalCache(name).preloader().syncFuture();
+            RebalanceFuture wFut = (RebalanceFuture)cctx.kernalContext().cache().internalCache(name).preloader().rebalanceFuture();
 
             if (!topologyChanged(fut) && wFut.updateSeq == fut.updateSeq) {
                 if (!wFut.get())
@@ -258,9 +270,9 @@ public class GridDhtPartitionDemander {
         if (delay == 0 || force) {
             assert assigns != null;
 
-            final SyncFuture oldFut = syncFut;
+            final RebalanceFuture oldFut = rebalanceFut;
 
-            final SyncFuture fut = new SyncFuture(assigns, cctx, log, oldFut.isInitial(), cnt);
+            final RebalanceFuture fut = new RebalanceFuture(assigns, cctx, log, oldFut.isInitial(), cnt);
 
             if (!oldFut.isInitial())
                 oldFut.cancel();
@@ -271,7 +283,7 @@ public class GridDhtPartitionDemander {
                     }
                 });
 
-            syncFut = fut;
+            rebalanceFut = fut;
 
             if (cctx.shared().exchange().hasPendingExchange()) { // Will rebalance at actual topology.
                 U.log(log, "Skipping obsolete exchange. [top=" + assigns.topologyVersion() + "]");
@@ -338,7 +350,7 @@ public class GridDhtPartitionDemander {
     /**
      * @param fut Future.
      */
-    private void requestPartitions(SyncFuture fut, GridDhtPreloaderAssignments assigns) {
+    private void requestPartitions(RebalanceFuture fut, GridDhtPreloaderAssignments assigns) {
         for (Map.Entry<ClusterNode, GridDhtPartitionDemandMessage> e : assigns.entrySet()) {
             if (topologyChanged(fut)) {
                 fut.cancel();
@@ -479,7 +491,7 @@ public class GridDhtPartitionDemander {
         final GridDhtPartitionSupplyMessageV2 supply) {
         AffinityTopologyVersion topVer = supply.topologyVersion();
 
-        final SyncFuture fut = syncFut;
+        final RebalanceFuture fut = rebalanceFut;
 
         ClusterNode node = cctx.node(id);
 
@@ -716,7 +728,7 @@ public class GridDhtPartitionDemander {
     /**
      *
      */
-    public static class SyncFuture extends GridFutureAdapter<Boolean> {
+    public static class RebalanceFuture extends GridFutureAdapter<Boolean> {
         /** */
         private static final long serialVersionUID = 1L;
 
@@ -754,7 +766,7 @@ public class GridDhtPartitionDemander {
          * @param log Logger.
          * @param sentStopEvnt Stop event flag.
          */
-        SyncFuture(GridDhtPreloaderAssignments assigns,
+        RebalanceFuture(GridDhtPreloaderAssignments assigns,
             GridCacheContext<?, ?> cctx,
             IgniteLogger log,
             boolean sentStopEvnt,
@@ -772,7 +784,7 @@ public class GridDhtPartitionDemander {
                 cctx.discovery().topologyFuture(assigns.topologyVersion().topologyVersion() + 1).listen(
                     new CI1<IgniteInternalFuture<Long>>() {
                         @Override public void apply(IgniteInternalFuture<Long> future) {
-                            SyncFuture.this.cancel();
+                            RebalanceFuture.this.cancel();
                         }
                     }); // todo: is it necessary?
         }
@@ -780,7 +792,7 @@ public class GridDhtPartitionDemander {
         /**
          * Dummy future. Will be done by real one.
          */
-        public SyncFuture() {
+        public RebalanceFuture() {
             this.exchFut = null;
             this.topVer = null;
             this.cctx = null;
@@ -866,7 +878,7 @@ public class GridDhtPartitionDemander {
                 U.log(log, "Cancelled rebalancing from all nodes [cache=" + cctx.name()
                     + ", topology=" + topologyVersion());
 
-                checkIsDone();
+                checkIsDone(true /* cancelled */);
             }
             finally {
                 lock.unlock();
@@ -980,6 +992,14 @@ public class GridDhtPartitionDemander {
          *
          */
         private void checkIsDone() {
+            checkIsDone(false);
+        }
+
+        /**
+         *
+         * @param cancelled Is cancelled.
+         */
+        private void checkIsDone(boolean cancelled) {
             if (remaining.isEmpty()) {
                 if (cctx.events().isRecordable(EVT_CACHE_REBALANCE_STOPPED) && (!cctx.isReplicated() || sendStoppedEvnt))
                     preloadEvent(EVT_CACHE_REBALANCE_STOPPED, exchFut.discoveryEvent());
@@ -1008,6 +1028,9 @@ public class GridDhtPartitionDemander {
 
                     cctx.shared().exchange().scheduleResendPartitions();
                 }
+
+                if (!cancelled && !cctx.preloader().syncFuture().isDone())
+                    ((GridFutureAdapter)cctx.preloader().syncFuture()).onDone();
 
                 onDone(true);
             }
@@ -1086,12 +1109,12 @@ public class GridDhtPartitionDemander {
         /** Hide worker logger and use cache logger instead. */
         private IgniteLogger log = GridDhtPartitionDemander.this.log;
 
-        private volatile SyncFuture fut;
+        private volatile RebalanceFuture fut;
 
         /**
          * @param id Worker ID.
          */
-        private DemandWorker(int id, SyncFuture fut) {
+        private DemandWorker(int id, RebalanceFuture fut) {
             assert id >= 0;
 
             this.id = id;
