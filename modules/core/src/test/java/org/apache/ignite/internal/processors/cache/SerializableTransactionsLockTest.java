@@ -52,7 +52,7 @@ import org.jetbrains.annotations.Nullable;
  */
 public class SerializableTransactionsLockTest extends GridCommonAbstractTest {
     /** */
-    private static final boolean TRY_LOCK = true;
+    private static final boolean TRY_LOCK = false;
 
     /** */
     private List<Node> nodes = new ArrayList<>();
