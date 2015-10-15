@@ -143,9 +143,6 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     /** */
     private final Queue<Runnable> rebalancingQueue = new ConcurrentLinkedDeque8<>();
 
-    /** */
-    private final AtomicReference<Integer> rebalancingQueueOwning = new AtomicReference<>(0);
-
     /**
      * Partition map futures.
      * This set also contains already completed exchange futures to address race conditions when coordinator
@@ -1160,6 +1157,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
             int cnt = 0;
 
+            IgniteInternalFuture asyncStartFut = null;
+
             while (!isCancelled()) {
                 GridDhtPartitionsExchangeFuture exchFut = null;
 
@@ -1326,9 +1325,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             }
                         }
 
-                        while (!rebalancingQueueOwning.compareAndSet(0, 1)) {
-                            U.sleep(10); // Wait for thread stop.
-                        }
+                        if (asyncStartFut != null)
+                            asyncStartFut.get(); // Wait for thread stop.
 
                         if (marsR != null || !rebalancingQueue.isEmpty()) {
                             if (futQ.isEmpty()) {
@@ -1336,6 +1334,10 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
 
                                 if (marsR != null)
                                     marsR.run();//Marshaller cache rebalancing launches in sync way.
+
+                                final GridFutureAdapter fut = new GridFutureAdapter();
+
+                                asyncStartFut = fut;
 
                                 cctx.kernalContext().closure().callLocalSafe(new GPC<Boolean>() {
                                     @Override public Boolean call() {
@@ -1350,27 +1352,17 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                             }
                                         }
                                         finally {
-                                            boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
-
-                                            assert res;
+                                            fut.onDone();
                                         }
                                     }
                                 }, /*system pool*/ true);
                             }
                             else {
                                 U.log(log, "Obsolete exchange, skipping rebalancing [top=" + exchFut.topologyVersion() + "]");
-
-                                boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
-
-                                assert res;
                             }
                         }
                         else {
                             U.log(log, "Nothing scheduled, skipping rebalancing [top=" + exchFut.topologyVersion() + "]");
-
-                            boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
-
-                            assert res;
                         }
                     }
                 }
