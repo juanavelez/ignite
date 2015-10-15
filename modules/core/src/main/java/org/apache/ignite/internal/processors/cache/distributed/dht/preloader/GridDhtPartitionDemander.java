@@ -232,10 +232,17 @@ public class GridDhtPartitionDemander {
             RebalanceFuture wFut = (RebalanceFuture)cctx.kernalContext().cache().internalCache(name).preloader().rebalanceFuture();
 
             if (!topologyChanged(fut) && wFut.updateSeq == fut.updateSeq) {
-                if (!wFut.get())
+                if (!wFut.get()) {
+                    U.log(log, "Skipping waiting of " + name + " cache [top=" + fut.topologyVersion() +
+                        "] (cache rebalanced with missed partitions)");
+
                     fut.cancel();
+                }
             }
             else {
+                U.log(log, "Skipping waiting of " + name + " cache [top=" + fut.topologyVersion() +
+                    "] (topology already changed)");
+
                 fut.cancel();
             }
         }

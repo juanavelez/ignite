@@ -1330,6 +1330,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             U.sleep(10); // Wait for thread stop.
                         }
 
+                        U.log(log, "Starting caches rebalancing [top=" + exchFut.topologyVersion() + "]");
+
                         if (marsR != null)
                             marsR.run();//Marshaller cache rebalancing launches in sync way.
 
