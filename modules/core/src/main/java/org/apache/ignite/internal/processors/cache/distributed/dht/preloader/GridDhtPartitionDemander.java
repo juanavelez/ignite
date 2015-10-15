@@ -398,8 +398,9 @@ public class GridDhtPartitionDemander {
                             cctx.io().sendOrderedMessage(node,
                                 GridCachePartitionExchangeManager.rebalanceTopic(cnt), initD, cctx.ioPolicy(), d.timeout());
 
-                            if (log.isDebugEnabled())
-                                log.debug("Requested rebalancing [from node=" + node.id() + ", listener index=" +
+//                            if (log.isDebugEnabled())
+//                                log.debug(
+                                    U.log(log,"Requested rebalancing [from node=" + node.id() + ", listener index=" +
                                     cnt + ", partitions count=" + sParts.get(cnt).size() +
                                     " (" + partitionsList(sParts.get(cnt)) + ")]");
                         }
@@ -499,13 +500,13 @@ public class GridDhtPartitionDemander {
             return;
         }
 
-        if (log.isDebugEnabled())
-            log.debug("Received supply message: " + supply);
+//        if (log.isDebugEnabled())
+//            log.debug(
+                U.log(log,"Received supply message: " + supply);
 
         // Check whether there were class loading errors on unmarshal
         if (supply.classError() != null) {
-            if (log.isDebugEnabled())
-                log.debug("Class got undeployed during preloading: " + supply.classError());
+            U.warn(log, "Class got undeployed during preloading: " + supply.classError());
 
             fut.cancel(id);
 

@@ -225,8 +225,9 @@ class GridDhtPartitionSupplier {
                 maxBatchesCnt = 1;
             }
             else {
-                if (log.isDebugEnabled())
-                    log.debug("Starting supplying rebalancing [cache=" + cctx.name() +
+//                if (log.isDebugEnabled())
+//                    log.debug
+                        U.log(log, "Starting supplying rebalancing [cache=" + cctx.name() +
                         ", fromNode=" + node.id() + ", partitionsCount=" + d.partitions().size() +
                         ", topology=" + d.topologyVersion() + ", updateSeq=" + d.updateSequence() +
                         ", idx=" + idx + "]");
@@ -567,8 +568,9 @@ class GridDhtPartitionSupplier {
 
             reply(node, d, s, scId);
 
-            if (log.isDebugEnabled())
-                log.debug("Finished supplying rebalancing [cache=" + cctx.name() +
+//            if (log.isDebugEnabled())
+//                log.debug(
+                    U.log(log, "Finished supplying rebalancing [cache=" + cctx.name() +
                     ", fromNode=" + node.id() +
                     ", topology=" + d.topologyVersion() + ", updateSeq=" + d.updateSequence() +
                     ", idx=" + idx + "]");
@@ -592,8 +594,9 @@ class GridDhtPartitionSupplier {
         throws IgniteCheckedException {
 
         try {
-            if (log.isDebugEnabled())
-                log.debug("Replying to partition demand [node=" + n.id() + ", demand=" + d + ", supply=" + s + ']');
+//            if (log.isDebugEnabled())
+//                log.debug
+                   U.log(log, "Replying to partition demand [node=" + n.id() + ", demand=" + d + ", supply=" + s + ']');
 
             cctx.io().sendOrderedMessage(n, d.topic(), s, cctx.ioPolicy(), d.timeout());
 
@@ -604,8 +607,9 @@ class GridDhtPartitionSupplier {
             return true;
         }
         catch (ClusterTopologyCheckedException ignore) {
-            if (log.isDebugEnabled())
-                log.debug("Failed to send partition supply message because node left grid: " + n.id());
+//            if (log.isDebugEnabled())
+//                log.debug
+                    U.log(log,"Failed to send partition supply message because node left grid: " + n.id());
 
             clearContext(scMap.remove(scId), log);
 
