@@ -205,8 +205,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         checkData(grid(1), 0, 0);
 
         log.info("Spend " + spend + " seconds to rebalance entries.");
-
-        stopAllGrids();
     }
 
     /**
@@ -265,8 +263,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         long spend = (System.currentTimeMillis() - start) / 1000;
 
         log.info("Spend " + spend + " seconds to rebalance entries.");
-
-        stopAllGrids();
     }
 
     /**
@@ -321,6 +317,8 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
 //    public void test() throws Exception {
 //        while (true) {
 //            testComplexRebalancing();
+
+//            stopAllGrids();
 //
 //            U.sleep(5000);
 //
@@ -464,8 +462,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         checkData(grid(4), 0, 2);
 
         log.info("Spend " + spend + " seconds to rebalance entries.");
-
-        stopAllGrids();
     }
 
     /**
@@ -489,8 +485,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         stopGrid(0);
 
         checkData(grid(1), 0, 0);
-
-        stopAllGrids();
     }
 
     /**
@@ -515,6 +509,10 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
 
         waitForRebalancing(0, 4);
         waitForRebalancing(1, 4);
+    }
+
+    @Override protected void afterTest() throws Exception {
+        super.afterTest();
 
         stopAllGrids();
     }
