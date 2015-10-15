@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentNavigableMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteClientDisconnectedException;
@@ -1375,20 +1374,12 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
         throws IgniteCheckedException {
         assert tx.optimistic() || !tx.local();
 
-        long timeout;
+        long remainingTime = U.currentTimeMillis() - (tx.startTime() + tx.timeout());
 
-        boolean ser = tx.optimistic() && tx.serializable();
-
-        if (!ser) {
-            long remainingTime = U.currentTimeMillis() - (tx.startTime() + tx.timeout());
-
-            // For serializable transactions, failure to acquire lock means
-            // that there is a serializable conflict. For all other isolation levels,
-            // we wait for the lock.
-            timeout = tx.timeout() == 0 ? 0 : remainingTime;
-        }
-        else
-            timeout = -1L;
+        // For serializable transactions, failure to acquire lock means
+        // that there is a serializable conflict. For all other isolation levels,
+        // we wait for the lock.
+        long timeout = tx.timeout() == 0 ? 0 : remainingTime;
 
         for (IgniteTxEntry txEntry1 : entries) {
             // Check if this entry was prepared before.
@@ -1406,7 +1397,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
                     GridCacheVersion serReadVer = txEntry1.serializableReadVersion();
 
-                    assert serReadVer == null || ser : txEntry1;
+                    assert serReadVer == null || (tx.optimistic() && tx.serializable()) : txEntry1;
 
                     if (!entry1.tmLock(tx, timeout, serReadVer)) {
                         // Unlock locks locked so far.

@@ -542,7 +542,9 @@ public interface GridCacheEntryEx {
      * @throws GridDistributedLockCancelledException If lock has been cancelled.
      * @throws IgniteCheckedException If failed.
      */
-    public boolean tmLock(IgniteInternalTx tx, long timeout, @Nullable GridCacheVersion serReadVer)
+    public boolean tmLock(IgniteInternalTx tx,
+        long timeout,
+        @Nullable GridCacheVersion serReadVer)
         throws GridCacheEntryRemovedException, GridDistributedLockCancelledException, IgniteCheckedException;
 
     /**
@@ -592,6 +594,14 @@ public interface GridCacheEntryEx {
      * @throws GridCacheEntryRemovedException If entry has been removed.
      */
     public GridCacheVersion version() throws GridCacheEntryRemovedException;
+
+    /**
+     * Checks if there was read/write conflict in serializable transaction.
+     *
+     * @param serReadVer Version read in serializable transaction.
+     * @return {@code True} if version check passed.
+     */
+    public boolean checkSerializableReadVersion(GridCacheVersion serReadVer);
 
     /**
      * Peeks into entry without loading value or updating statistics.

@@ -180,6 +180,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
         AffinityTopologyVersion topVer,
         long threadId,
         GridCacheVersion ver,
+        @Nullable GridCacheVersion serOrder,
         @Nullable GridCacheVersion serReadVer,
         long timeout,
         boolean reenter,
@@ -187,6 +188,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
         boolean implicitSingle)
         throws GridCacheEntryRemovedException, GridDistributedLockCancelledException, IgniteCheckedException
     {
+        assert serReadVer == null || serOrder != null;
+        assert !reenter || serOrder == null;
+
         GridCacheMvccCandidate cand;
         GridCacheMvccCandidate prev;
         GridCacheMvccCandidate owner;
@@ -203,10 +207,8 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
             if (serReadVer != null) {
                 unswap(false);
 
-                if (!serReadVer.equals(this.ver)) {
-                    if (!((isNew() || deleted()) && serReadVer.equals(IgniteTxEntry.READ_NEW_ENTRY_VER)))
-                        return null;
-                }
+                if (!checkSerializableReadVersion(serReadVer))
+                    return null;
             }
 
             GridCacheMvcc mvcc = mvccExtras();
@@ -228,6 +230,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
                 threadId,
                 ver,
                 timeout,
+                serOrder,
                 reenter,
                 tx,
                 implicitSingle,
@@ -265,7 +268,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean tmLock(IgniteInternalTx tx, long timeout, GridCacheVersion serReadVer)
+    @Override public boolean tmLock(IgniteInternalTx tx,
+        long timeout,
+        GridCacheVersion serReadVer)
         throws GridCacheEntryRemovedException, GridDistributedLockCancelledException, IgniteCheckedException {
         if (tx.local()) {
             GridDhtTxLocalAdapter dhtTx = (GridDhtTxLocalAdapter)tx;
@@ -277,6 +282,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
                 tx.topologyVersion(),
                 tx.threadId(),
                 tx.xidVersion(),
+                (tx.optimistic() && tx.serializable()) ? tx.nearXidVersion() : null,
                 serReadVer,
                 timeout,
                 /*reenter*/false,

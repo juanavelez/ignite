@@ -57,6 +57,7 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.processors.dr.GridDrType;
+import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.util.F0;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.GridLeanSet;
@@ -469,9 +470,18 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
         if (log.isDebugEnabled())
             log.debug("Marking all local candidates as ready: " + this);
 
-        Iterable<IgniteTxEntry> checkEntries =
-            (tx.optimistic() && tx.serializable()) ? F.concat(false, writes, reads) : writes;
+        readyLocks(writes);
 
+        if (tx.optimistic() && tx.serializable())
+            readyLocks(reads);
+
+        locksReady = true;
+    }
+
+    /**
+     * @param checkEntries Entries.
+     */
+    private void readyLocks(Iterable<IgniteTxEntry> checkEntries) {
         for (IgniteTxEntry txEntry : checkEntries) {
             GridCacheContext cacheCtx = txEntry.context();
 
@@ -511,8 +521,6 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
                 }
             }
         }
-
-        locksReady = true;
     }
 
     /**
@@ -903,10 +911,58 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     }
 
     /**
+     * @param entries Entries.
+     * @return Not null exception if version check failed.
+     */
+    @Nullable private IgniteTxOptimisticCheckedException checkReadConflict(Collection<IgniteTxEntry> entries) {
+        for (IgniteTxEntry entry : entries) {
+            GridCacheVersion serReadVer = entry.serializableReadVersion();
+
+            if (serReadVer != null && !entry.cached().checkSerializableReadVersion(serReadVer)) {
+                GridCacheContext cctx = entry.context();
+
+                return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
+                    "read conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
+                    ", cache=" + cctx.name() + ']');
+            }
+        }
+
+        return null;
+    }
+
+    /**
      *
      */
     private void prepare0() {
         try {
+            if (tx.optimistic() && tx.serializable()) {
+                IgniteTxOptimisticCheckedException err0 = checkReadConflict(writes);
+
+                if (err0 == null)
+                    err0 = checkReadConflict(reads);
+
+                if (err0 != null) {
+                    err.compareAndSet(null, err0);
+
+                    final GridNearTxPrepareResponse res = createPrepareResponse();
+
+                    tx.rollbackAsync().listen(new CI1<IgniteInternalFuture<IgniteInternalTx>>() {
+                        @Override public void apply(IgniteInternalFuture<IgniteInternalTx> fut) {
+                            if (GridDhtTxPrepareFuture.super.onDone(res, res.error())) {
+                                try {
+                                    sendPrepareResponse(res);
+                                }
+                                catch (IgniteCheckedException e) {
+                                    U.error(log, "Failed to send prepare response for transaction: " + tx, e);
+                                }
+                            }
+                        }
+                    });
+
+                    return;
+                }
+            }
+
             // We are holding transaction-level locks for entries here, so we can get next write version.
             onEntriesLocked();
 

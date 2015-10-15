@@ -44,6 +44,7 @@ import org.apache.ignite.internal.processors.cache.extras.GridCacheObsoleteEntry
 import org.apache.ignite.internal.processors.cache.extras.GridCacheTtlEntryExtras;
 import org.apache.ignite.internal.processors.cache.query.GridCacheQueryManager;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
+import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalAdapter;
 import org.apache.ignite.internal.processors.cache.version.GridCachePlainVersionedEntry;
@@ -2830,6 +2831,18 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         checkObsolete();
 
         return ver;
+    }
+
+    /** {@inheritDoc} */
+    @Override public synchronized boolean checkSerializableReadVersion(GridCacheVersion serReadVer) {
+        assert !obsolete() : this;
+
+        if (!serReadVer.equals(ver)) {
+            if (!((isStartVersion() || deletedUnlocked()) && serReadVer.equals(IgniteTxEntry.READ_NEW_ENTRY_VER)))
+                return false;
+        }
+
+        return true;
     }
 
     /**

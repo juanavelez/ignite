@@ -95,10 +95,8 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
             checkObsolete();
 
             if (serReadVer != null) {
-                if (!serReadVer.equals(this.ver)) {
-                    if (!((isNew() || deleted()) && serReadVer.equals(IgniteTxEntry.READ_NEW_ENTRY_VER)))
-                        return null;
-                }
+                if (!checkSerializableReadVersion(serReadVer))
+                    return null;
             }
 
             GridCacheMvcc mvcc = mvccExtras();
@@ -201,7 +199,9 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
     }
 
     /** {@inheritDoc} */
-    @Override public boolean tmLock(IgniteInternalTx tx, long timeout, GridCacheVersion serReadVer)
+    @Override public boolean tmLock(IgniteInternalTx tx,
+        long timeout,
+        GridCacheVersion serReadVer)
         throws GridCacheEntryRemovedException {
         GridCacheMvccCandidate cand = addLocal(
             tx.threadId(),
