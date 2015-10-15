@@ -1315,8 +1315,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                     assignsMap.get(cacheId), forcePreload, waitList, cnt);
 
                                 if (r != null) {
-                                    U.log(log, "Rebalancing scheduled: [cache=" + cacheCtx.name() +
-                                        " , waitList=" + waitList.toString() + "]");
+                                    U.log(log, "Cache rebalancing scheduled: [cache=" + cacheCtx.name() +
+                                        ", waitList=" + waitList.toString() + "]");
 
                                     if (cacheId == CU.cacheId(GridCacheUtils.MARSH_CACHE_NAME))
                                         marsR = r;
@@ -1330,30 +1330,48 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             U.sleep(10); // Wait for thread stop.
                         }
 
-                        U.log(log, "Starting caches rebalancing [top=" + exchFut.topologyVersion() + "]");
+                        if (marsR != null || !rebalancingQueue.isEmpty()) {
+                            if (futQ.isEmpty()) {
+                                U.log(log, "Starting caches rebalancing [top=" + exchFut.topologyVersion() + "]");
 
-                        if (marsR != null)
-                            marsR.run();//Marshaller cache rebalancing launches in sync way.
+                                if (marsR != null)
+                                    marsR.run();//Marshaller cache rebalancing launches in sync way.
 
-                        cctx.kernalContext().closure().callLocalSafe(new GPC<Boolean>() {
-                            @Override public Boolean call() {
-                                try {
-                                    while (true) {
-                                        Runnable rn = rebalancingQueue.poll();
+                                cctx.kernalContext().closure().callLocalSafe(new GPC<Boolean>() {
+                                    @Override public Boolean call() {
+                                        try {
+                                            while (true) {
+                                                Runnable rn = rebalancingQueue.poll();
 
-                                        if (rn == null)
-                                            return false;
+                                                if (rn == null)
+                                                    return false;
 
-                                        rn.run();
+                                                rn.run();
+                                            }
+                                        }
+                                        finally {
+                                            boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
+
+                                            assert res;
+                                        }
                                     }
-                                }
-                                finally {
-                                    boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
-
-                                    assert res;
-                                }
+                                }, /*system pool*/ true);
                             }
-                        }, /*system pool*/ true);
+                            else {
+                                U.log(log, "Obsolete exchange, skipping rebalancing [top=" + exchFut.topologyVersion() + "]");
+
+                                boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
+
+                                assert res;
+                            }
+                        }
+                        else {
+                            U.log(log, "Nothing scheduled, skipping rebalancing [top=" + exchFut.topologyVersion() + "]");
+
+                            boolean res = rebalancingQueueOwning.compareAndSet(1, 0);
+
+                            assert res;
+                        }
                     }
                 }
                 catch (IgniteInterruptedCheckedException e) {

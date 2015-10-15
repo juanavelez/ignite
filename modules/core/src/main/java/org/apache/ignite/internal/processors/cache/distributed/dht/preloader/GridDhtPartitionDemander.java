@@ -292,22 +292,8 @@ public class GridDhtPartitionDemander {
 
             rebalanceFut = fut;
 
-            if (cctx.shared().exchange().hasPendingExchange()) { // Will rebalance at actual topology.
-                U.log(log, "Skipping obsolete exchange. [top=" + assigns.topologyVersion() + "]");
-
-                fut.cancel();
-
-                return null;
-            }
-
             if (assigns.isEmpty()) {
                 fut.doneIfEmpty();
-
-                return null;
-            }
-
-            if (topologyChanged(fut)) {
-                fut.cancel();
 
                 return null;
             }
@@ -786,14 +772,6 @@ public class GridDhtPartitionDemander {
             this.log = log;
             this.sendStoppedEvnt = sentStopEvnt;
             this.updateSeq = updateSeq;
-
-            if (assigns != null)
-                cctx.discovery().topologyFuture(assigns.topologyVersion().topologyVersion() + 1).listen(
-                    new CI1<IgniteInternalFuture<Long>>() {
-                        @Override public void apply(IgniteInternalFuture<Long> future) {
-                            RebalanceFuture.this.cancel();
-                        }
-                    }); // todo: is it necessary?
         }
 
         /**
