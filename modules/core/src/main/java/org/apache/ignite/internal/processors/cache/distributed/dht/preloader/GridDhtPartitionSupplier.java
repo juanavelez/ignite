@@ -187,8 +187,11 @@ class GridDhtPartitionSupplier {
         assert d != null;
         assert id != null;
 
-        if (!cctx.affinity().affinityTopologyVersion().equals(d.topologyVersion()))
+        if (!cctx.affinity().affinityTopologyVersion().equals(d.topologyVersion())) {
+
+            U.log(log, "Demand request cancelled [current=" + cctx.affinity().affinityTopologyVersion() + ", demanded=" + d.topologyVersion() + "]");
             return;
+        }
 
         GridDhtPartitionSupplyMessageV2 s = new GridDhtPartitionSupplyMessageV2(
             d.updateSequence(), cctx.cacheId(), d.topologyVersion());
@@ -609,7 +612,7 @@ class GridDhtPartitionSupplier {
         catch (ClusterTopologyCheckedException ignore) {
 //            if (log.isDebugEnabled())
 //                log.debug
-                    U.log(log,"Failed to send partition supply message because node left grid: " + n.id());
+                    U.log(log, "Failed to send partition supply message because node left grid: " + n.id());
 
             clearContext(scMap.remove(scId), log);
 
