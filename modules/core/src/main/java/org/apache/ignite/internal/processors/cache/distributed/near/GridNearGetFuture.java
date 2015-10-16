@@ -37,7 +37,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryRemovedException;
-import org.apache.ignite.internal.processors.cache.GridCacheFilterFailedException;
 import org.apache.ignite.internal.processors.cache.GridCacheMessage;
 import org.apache.ignite.internal.processors.cache.IgniteCacheExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
@@ -51,7 +50,6 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.GridLeanMap;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
-import org.apache.ignite.internal.util.lang.GridInClosure3;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.C1;
 import org.apache.ignite.internal.util.typedef.CI1;
@@ -91,7 +89,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
      * @param cctx Context.
      * @param keys Keys.
      * @param readThrough Read through flag.
-     * @param reload Reload flag.
      * @param forcePrimary If {@code true} get will be performed on primary node even if
      *      called on backup node.
      * @param tx Transaction.
@@ -108,7 +105,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         GridCacheContext<K, V> cctx,
         Collection<KeyCacheObject> keys,
         boolean readThrough,
-        boolean reload,
         boolean forcePrimary,
         @Nullable IgniteTxLocalEx tx,
         @Nullable UUID subjId,
@@ -123,7 +119,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         super(cctx,
             keys,
             readThrough,
-            reload,
             forcePrimary,
             subjId,
             taskName,
@@ -301,7 +296,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                         -1,
                         mappedKeys,
                         readThrough,
-                        reload,
                         topVer,
                         subjId,
                         taskName == null ? 0 : taskName.hashCode(),
@@ -360,7 +354,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     ver,
                     mappedKeys,
                     readThrough,
-                    reload,
+                    false,
                     topVer,
                     subjId,
                     taskName == null ? 0 : taskName.hashCode(),
@@ -528,7 +522,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     }
                 }
 
-                if (v != null && !reload) {
+                if (v != null) {
                     if (needVer) {
                         V val0 = (V)new T2<>(skipVals ? true : v, ver);
 
@@ -602,7 +596,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                 entry = allowLocRead ? near.peekEx(key) : null;
             }
             finally {
-                if (entry != null && !reload && tx == null)
+                if (entry != null && tx == null)
                     cctx.evicts().touch(entry, topVer);
             }
         }

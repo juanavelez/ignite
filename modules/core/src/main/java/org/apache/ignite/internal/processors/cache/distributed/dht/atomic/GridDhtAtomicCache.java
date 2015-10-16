@@ -333,7 +333,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         return asyncOp(new CO<IgniteInternalFuture<Map<K, V>>>() {
             @Override public IgniteInternalFuture<Map<K, V>> apply() {
                 return getAllAsync0(ctx.cacheKeysView(keys),
-                    false,
                     forcePrimary,
                     subjId0,
                     taskName,
@@ -919,7 +918,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
      * Entry point to all public API get methods.
      *
      * @param keys Keys to remove.
-     * @param reload Reload flag.
      * @param forcePrimary Force primary flag.
      * @param subjId Subject ID.
      * @param taskName Task name.
@@ -930,7 +928,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
      * @return Get future.
      */
     private IgniteInternalFuture<Map<K, V>> getAllAsync0(@Nullable Collection<KeyCacheObject> keys,
-        boolean reload,
         boolean forcePrimary,
         UUID subjId,
         String taskName,
@@ -946,7 +943,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
         final IgniteCacheExpiryPolicy expiry = skipVals ? null : expiryPolicy(expiryPlc);
 
         // Optimisation: try to resolve value locally and escape 'get future' creation.
-        if (!reload && !forcePrimary) {
+        if (!forcePrimary) {
             Map<K, V> locVals = U.newHashMap(keys.size());
 
             boolean success = true;
@@ -1031,7 +1028,6 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             keys,
             topVer,
             !skipStore,
-            reload,
             forcePrimary,
             subjId,
             taskName,

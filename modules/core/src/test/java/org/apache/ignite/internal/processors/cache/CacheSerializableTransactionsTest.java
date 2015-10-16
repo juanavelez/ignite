@@ -3039,7 +3039,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
-    public void testNoOptimisticExceptionChangingTopology() throws Exception {
+    public void testNoOptimisticExceptionOnChangingTopology() throws Exception {
         if (FAST)
             return;
 
@@ -3176,10 +3176,10 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                 fut.get();
         }
         finally {
+            finished.set(true);
+
             for (String cacheName : cacheNames)
                 srv.destroyCache(cacheName);
-
-            finished.set(true);
         }
     }
 

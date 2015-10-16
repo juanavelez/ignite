@@ -332,7 +332,6 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         UUID subjId, String taskName) throws IgniteCheckedException {
         return cctx.near().loadAsync(tx,
             F.asList(key),
-            reload,
             /*force primary*/false,
             subjId,
             taskName,

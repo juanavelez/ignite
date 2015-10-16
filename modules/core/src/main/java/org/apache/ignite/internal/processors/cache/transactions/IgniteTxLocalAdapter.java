@@ -31,12 +31,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.cache.Cache;
 import javax.cache.CacheException;
 import javax.cache.expiry.Duration;
 import javax.cache.expiry.ExpiryPolicy;
 import javax.cache.processor.EntryProcessor;
 import org.apache.ignite.IgniteCheckedException;
-import org.apache.ignite.IgniteException;
 import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -2913,6 +2913,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
      * @param drMap DR map.
      * @param retval Flag indicating whether a value should be returned.
      * @param filter Filter.
+     * @param singleRmv {@code True} for single key remove operation ({@link Cache#remove(Object)}.
      * @return Future for asynchronous remove.
      */
     @SuppressWarnings("unchecked")

@@ -80,6 +80,7 @@ import org.apache.ignite.testframework.GridTestUtils;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
 import org.apache.ignite.transactions.Transaction;
 import org.apache.ignite.transactions.TransactionConcurrency;
+import org.apache.ignite.transactions.TransactionIsolation;
 import org.eclipse.jetty.util.ConcurrentHashSet;
 import org.jetbrains.annotations.Nullable;
 
@@ -1571,6 +1572,13 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
     /**
      * @throws Exception If failed.
      */
+    public void testOptimisticSerializableTxPutAllMultinode() throws Exception {
+        multinode(null, TestType.OPTIMISTIC_SERIALIZABLE_TX);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testPessimisticTxPutAllMultinode() throws Exception {
         multinode(null, TestType.PESSIMISTIC_TX);
     }
@@ -1640,7 +1648,9 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
 
                     IgniteCache<Integer, Integer> cache = ignite.cache(null);
 
-                    boolean useTx = testType == TestType.OPTIMISTIC_TX || testType == TestType.PESSIMISTIC_TX;
+                    boolean useTx = testType == TestType.OPTIMISTIC_TX ||
+                        testType == TestType.OPTIMISTIC_SERIALIZABLE_TX ||
+                        testType == TestType.PESSIMISTIC_TX;
 
                     if (useTx || testType == TestType.LOCK) {
                         assertEquals(TRANSACTIONAL,
@@ -1675,7 +1685,10 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
                                     TransactionConcurrency concurrency =
                                         testType == TestType.PESSIMISTIC_TX ? PESSIMISTIC : OPTIMISTIC;
 
-                                    try (Transaction tx = txs.txStart(concurrency, REPEATABLE_READ)) {
+                                    TransactionIsolation isolation = testType == TestType.OPTIMISTIC_SERIALIZABLE_TX ?
+                                        SERIALIZABLE : REPEATABLE_READ;
+
+                                    try (Transaction tx = txs.txStart(concurrency, isolation)) {
                                         cache.putAll(map);
 
                                         tx.commit();
@@ -1980,6 +1993,9 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
 
         /** */
         OPTIMISTIC_TX,
+
+        /** */
+        OPTIMISTIC_SERIALIZABLE_TX,
 
         /** */
         PESSIMISTIC_TX,

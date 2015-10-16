@@ -40,7 +40,6 @@ import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxMapp
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
-import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
 import org.apache.ignite.internal.util.GridConcurrentHashSet;
@@ -155,12 +154,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
 
         if (err.compareAndSet(null, e)) {
             boolean marked = tx.setRollbackOnly();
-
-            if (e instanceof IgniteTxOptimisticCheckedException) {
-                assert nodeId != null : "Missing node ID for optimistic failure exception: " + e;
-
-                tx.removeKeysMapping(nodeId, mappings);
-            }
 
             if (e instanceof IgniteTxRollbackCheckedException) {
                 if (marked) {

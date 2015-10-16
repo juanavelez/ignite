@@ -480,10 +480,10 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
         Map<IgniteBiTuple<ClusterNode, Boolean>, GridDistributedTxMapping> mappings = new HashMap<>();
 
         for (IgniteTxEntry write : writes)
-            map(write, topVer, mappings, true, remap);
+            map(write, topVer, mappings, remap);
 
         for (IgniteTxEntry read : reads)
-            map(read, topVer, mappings, true, remap);
+            map(read, topVer, mappings, remap);
 
         keyLockFut.onAllKeysAdded();
 
@@ -645,14 +645,12 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
      * @param entry Transaction entry.
      * @param topVer Topology version.
      * @param curMapping Current mapping.
-     * @param waitLock Wait lock flag.
      * @param remap Remap flag.
      */
     private void map(
         IgniteTxEntry entry,
         AffinityTopologyVersion topVer,
         Map<IgniteBiTuple<ClusterNode, Boolean>, GridDistributedTxMapping> curMapping,
-        boolean waitLock,
         boolean remap
     ) {
         GridCacheContext cacheCtx = entry.context();
@@ -671,6 +669,13 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
                 ", primary=" + U.toShortString(primary) + ", topVer=" + topVer + ']');
         }
 
+        if (primary.version().compareTo(SER_TX_SINCE) < 0) {
+            onDone(new IgniteCheckedException("Optimistic serializable transactions can be used only with node " +
+                "version starting from " + SER_TX_SINCE));
+
+            return;
+        }
+
         // Must re-initialize cached entry while holding topology lock.
         if (cacheCtx.isNear())
             entry.cached(cacheCtx.nearTx().entryExx(entry.key(), topVer));
@@ -680,7 +685,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
             entry.cached(cacheCtx.local().entryEx(entry.key(), topVer));
 
         if (!remap && (cacheCtx.isNear() || cacheCtx.isLocal())) {
-            if (waitLock && entry.explicitVersion() == null)
+            if (entry.explicitVersion() == null)
                 keyLockFut.addLockKey(entry.txKey());
         }
 

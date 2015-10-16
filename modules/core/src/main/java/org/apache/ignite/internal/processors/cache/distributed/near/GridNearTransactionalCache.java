@@ -48,7 +48,6 @@ import org.apache.ignite.internal.processors.cache.transactions.IgniteTxLocalEx;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
-import org.apache.ignite.internal.util.lang.GridInClosure3;
 import org.apache.ignite.internal.util.typedef.CI2;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -155,7 +154,6 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
 
         return loadAsync(null,
             ctx.cacheKeysView(keys),
-            false,
             forcePrimary,
             subjId,
             taskName,
@@ -188,7 +186,6 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
             keys,
             readThrough,
             false,
-            false,
             tx,
             CU.subjectId(tx, ctx.shared()),
             tx.resolveTaskName(),
@@ -197,7 +194,7 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
             skipVals,
             /*can remap*/true,
             needVer,
-            true);
+            /*keepCacheObjects*/true);
 
         // init() will register future for responses if it has remote mappings.
         fut.init();

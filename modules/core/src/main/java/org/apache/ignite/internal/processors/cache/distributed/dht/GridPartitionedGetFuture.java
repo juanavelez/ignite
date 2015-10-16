@@ -85,7 +85,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
      * @param keys Keys.
      * @param topVer Topology version.
      * @param readThrough Read through flag.
-     * @param reload Reload flag.
      * @param forcePrimary If {@code true} then will force network trip to primary node even
      *          if called on backup node.
      * @param subjId Subject ID.
@@ -102,7 +101,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         Collection<KeyCacheObject> keys,
         AffinityTopologyVersion topVer,
         boolean readThrough,
-        boolean reload,
         boolean forcePrimary,
         @Nullable UUID subjId,
         String taskName,
@@ -116,7 +114,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         super(cctx,
             keys,
             readThrough,
-            reload,
             forcePrimary,
             subjId,
             taskName,
@@ -273,7 +270,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         if (isDone())
             return;
 
-        if (!F.isEmpty(locVals))
+        if (!locVals.isEmpty())
             add(new GridFinishedFuture<>(locVals));
 
         if (hasRmtNodes) {
@@ -297,7 +294,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                         -1,
                         mappedKeys,
                         readThrough,
-                        reload,
                         topVer,
                         subjId,
                         taskName == null ? 0 : taskName.hashCode(),
@@ -350,7 +346,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                     ver,
                     mappedKeys,
                     readThrough,
-                    reload,
+                    false,
                     topVer,
                     subjId,
                     taskName == null ? 0 : taskName.hashCode(),
@@ -397,10 +393,10 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         boolean allowLocRead = !forcePrimary || cctx.affinity().primary(cctx.localNode(), key, topVer);
 
         while (true) {
-            GridCacheEntryEx entry = null;
+            GridCacheEntryEx entry;
 
             try {
-                if (!reload && allowLocRead) {
+                if (allowLocRead) {
                     try {
                         entry = colocated.context().isSwapOrOffheapEnabled() ? colocated.entryEx(key) :
                             colocated.peekEx(key);

@@ -380,7 +380,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
             return cacheCtx.colocated().loadAsync(
                 keys,
                 readThrough,
-                /*reload*/false,
                 /*force primary*/false,
                 topologyVersion(),
                 CU.subjectId(this, cctx),
@@ -585,38 +584,6 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
             if (log.isDebugEnabled())
                 log.debug("Added mappings to transaction [locId=" + cctx.localNodeId() + ", mappings=" + maps +
                     ", tx=" + this + ']');
-        }
-    }
-
-
-    /**
-     * TODO IGNITE-1607: remove this method?
-     *
-     * Removes mapping in case of optimistic tx failure on primary node.
-     *
-     * @param failedNodeId Failed node ID.
-     * @param mapQueue Mappings queue.
-     */
-    void removeKeysMapping(UUID failedNodeId, Iterable<GridDistributedTxMapping> mapQueue) {
-        assert failedNodeId != null;
-        assert mapQueue != null;
-
-        mappings.remove(failedNodeId);
-
-        if (!F.isEmpty(mapQueue)) {
-            for (GridDistributedTxMapping m : mapQueue) {
-                UUID nodeId = m.node().id();
-
-                GridDistributedTxMapping mapping = mappings.get(nodeId);
-
-                if (mapping != null) {
-                    for (IgniteTxEntry entry : m.entries())
-                        mapping.removeEntry(entry);
-
-                    if (mapping.entries().isEmpty())
-                        mappings.remove(nodeId);
-                }
-            }
         }
     }
 

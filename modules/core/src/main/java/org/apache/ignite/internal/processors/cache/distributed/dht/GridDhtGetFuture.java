@@ -321,7 +321,6 @@ public final class GridDhtGetFuture<K, V> extends GridCompoundIdentityFuture<Col
                         // TODO: In this case seems like we will be stuck with untracked near entry.
                         // TODO: To fix, check that reader is contained in the list of readers once
                         // TODO: again after the returned future completes - if not, try again.
-                        // TODO: Also, why is info read before transactions are complete, and not after?
                         IgniteInternalFuture<Boolean> f = addReader ? e.addReader(reader, msgId, topVer) : null;
 
                         if (f != null) {

@@ -405,7 +405,6 @@ public class GridNearAtomicCache<K, V> extends GridNearCacheAdapter<K, V> {
 
         return loadAsync(null,
             ctx.cacheKeysView(keys),
-            false,
             forcePrimary,
             subjId,
             taskName,

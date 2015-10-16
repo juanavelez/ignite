@@ -19,6 +19,7 @@ package org.apache.ignite.internal.processors.cache.distributed.near;
 
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.internal.processors.cache.GridCacheProcessor;
 import org.apache.ignite.internal.processors.cache.IgniteTxMultiThreadedAbstractTest;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
@@ -55,6 +56,8 @@ public class GridCachePartitionedTxMultiThreadedSelfTest extends IgniteTxMultiTh
 
         cc.setWriteSynchronizationMode(FULL_SYNC);
 
+        cc.setNearConfiguration(nearEnabled() ? new NearCacheConfiguration() : null);
+
         c.setCacheConfiguration(cc);
 
         TcpDiscoverySpi disco = new TcpDiscoverySpi();
@@ -67,6 +70,13 @@ public class GridCachePartitionedTxMultiThreadedSelfTest extends IgniteTxMultiTh
             resetLog4j(Level.DEBUG, true, GridCacheProcessor.class.getPackage().getName());
 
         return c;
+    }
+
+    /**
+     * @return {@code True} if near cache is enabled.
+     */
+    protected boolean nearEnabled() {
+        return true;
     }
 
     /** {@inheritDoc} */

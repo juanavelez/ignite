@@ -563,7 +563,7 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
 
     /**
      * This method is used internally. Use
-     * {@link #getDhtAsync(UUID, long, LinkedHashMap, boolean, boolean, AffinityTopologyVersion, UUID, int, IgniteCacheExpiryPolicy, boolean)}
+     * {@link #getDhtAsync(UUID, long, LinkedHashMap, boolean, AffinityTopologyVersion, UUID, int, IgniteCacheExpiryPolicy, boolean)}
      * method instead to retrieve DHT value.
      *
      * @param keys {@inheritDoc}
@@ -631,7 +631,6 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
      * @param msgId Message ID.
      * @param keys Keys to get.
      * @param readThrough Read through flag.
-     * @param reload Reload flag.
      * @param topVer Topology version.
      * @param subjId Subject ID.
      * @param taskNameHash Task name hash code.
@@ -642,7 +641,6 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
         long msgId,
         LinkedHashMap<KeyCacheObject, Boolean> keys,
         boolean readThrough,
-        boolean reload,
         AffinityTopologyVersion topVer,
         @Nullable UUID subjId,
         int taskNameHash,
@@ -671,6 +669,7 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
      */
     protected void processNearGetRequest(final UUID nodeId, final GridNearGetRequest req) {
         assert ctx.affinityNode();
+        assert !req.reload() : req;
 
         long ttl = req.accessTtl();
 
@@ -681,7 +680,6 @@ public abstract class GridDhtCacheAdapter<K, V> extends GridDistributedCacheAdap
                 req.messageId(),
                 req.keys(),
                 req.readThrough(),
-                req.reload(),
                 req.topologyVersion(),
                 req.subjectId(),
                 req.taskNameHash(),

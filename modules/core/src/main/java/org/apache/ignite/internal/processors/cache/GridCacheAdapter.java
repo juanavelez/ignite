@@ -1341,36 +1341,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
     }
 
     /**
-     * @param keys Keys.
-     * @param reload Reload flag.
-     * @param tx Transaction.
-     * @param subjId Subject ID.
-     * @param taskName Task name.
-     * @param vis Visitor.
-     * @return Future.
-     */
-    public IgniteInternalFuture<Object> readThroughAllAsync(final Collection<KeyCacheObject> keys,
-        boolean reload,
-        boolean skipVals,
-        @Nullable final IgniteInternalTx tx,
-        @Nullable UUID subjId,
-        String taskName,
-        final IgniteBiInClosure<KeyCacheObject, Object> vis) {
-        return ctx.closures().callLocalSafe(new GPC<Object>() {
-            @Nullable @Override public Object call() {
-                try {
-                    ctx.store().loadAll(tx, keys, vis);
-                }
-                catch (IgniteCheckedException e) {
-                    throw new GridClosureException(e);
-                }
-
-                return null;
-            }
-        }, true);
-    }
-
-    /**
      * @param key Key.
      * @param topVer Topology version.
      * @return Entry.
@@ -1592,7 +1562,9 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
      * @param deserializePortable Deserialize portable flag.
      * @param expiry Expiry policy.
      * @param skipVals Skip values flag.
-     * @param keepCacheObjects Keep cache objects
+     * @param keepCacheObjects Keep cache objects.
+     * @param canRemap Can remap flag.
+     * @param needVer If {@code true} returns values as tuples containing value and version.
      * @return Future.
      */
     public final <K1, V1> IgniteInternalFuture<Map<K1, V1>> getAllAsync0(@Nullable final Collection<KeyCacheObject> keys,

@@ -53,9 +53,6 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
     /** Keys. */
     protected Collection<KeyCacheObject> keys;
 
-    /** Reload flag. */
-    protected boolean reload;
-
     /** Read through flag. */
     protected boolean readThrough;
 
@@ -99,7 +96,6 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
      * @param cctx Context.
      * @param keys Keys.
      * @param readThrough Read through flag.
-     * @param reload Reload flag.
      * @param forcePrimary If {@code true} then will force network trip to primary node even
      *          if called on backup node.
      * @param subjId Subject ID.
@@ -115,7 +111,6 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
         GridCacheContext<K, V> cctx,
         Collection<KeyCacheObject> keys,
         boolean readThrough,
-        boolean reload,
         boolean forcePrimary,
         @Nullable UUID subjId,
         String taskName,
@@ -133,7 +128,6 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
         this.cctx = cctx;
         this.keys = keys;
         this.readThrough = readThrough;
-        this.reload = reload;
         this.forcePrimary = forcePrimary;
         this.subjId = subjId;
         this.taskName = taskName;

@@ -1276,14 +1276,14 @@ public abstract class IgniteTxAdapter extends GridMetadataAwareAdapter
 
             CacheObject cacheVal = txEntry.hasValue() ? txEntry.value() :
                 txEntry.cached().innerGet(this,
-                        /*swap*/false,
-                        /*read through*/false,
-                        /*fail fast*/true,
-                        /*unmarshal*/true,
-                        /*metrics*/metrics,
-                        /*event*/recordEvt,
-                        /*temporary*/true,
-                        /*subjId*/subjId,
+                    /*swap*/false,
+                    /*read through*/false,
+                    /*fail fast*/true,
+                    /*unmarshal*/true,
+                    /*metrics*/metrics,
+                    /*event*/recordEvt,
+                    /*temporary*/true,
+                    /*subjId*/subjId,
                     /**closure name */recordEvt ? F.first(txEntry.entryProcessors()).get1() : null,
                     resolveTaskName(),
                     null);
