@@ -67,6 +67,7 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
      *
      * @param threadId Owning thread ID.
      * @param ver Lock version.
+     * @param serOrder Version for serializable transactions ordering.
      * @param serReadVer Optional read entry version for optimistic serializable transaction.
      * @param timeout Timeout to acquire lock.
      * @param reenter Reentry flag.
@@ -78,6 +79,7 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
     @Nullable public GridCacheMvccCandidate addLocal(
         long threadId,
         GridCacheVersion ver,
+        @Nullable GridCacheVersion serOrder,
         @Nullable GridCacheVersion serReadVer,
         long timeout,
         boolean reenter,
@@ -110,12 +112,16 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
 
             cand = mvcc.addLocal(
                 this,
+                /*nearNodeId*/null,
+                /*nearVer*/null,
                 threadId,
                 ver,
                 timeout,
+                serOrder,
                 reenter,
                 tx,
-                implicitSingle
+                implicitSingle,
+                /*dht-local*/false
             );
 
             owner = mvcc.localOwner();
@@ -205,6 +211,7 @@ public class GridLocalCacheEntry extends GridCacheMapEntry {
         GridCacheMvccCandidate cand = addLocal(
             tx.threadId(),
             tx.xidVersion(),
+            (tx.optimistic() && tx.serializable()) ? tx.nearXidVersion() : null,
             serReadVer,
             timeout,
             /*reenter*/false,

@@ -226,6 +226,7 @@ public final class GridLocalLockFuture<K, V> extends GridFutureAdapter<Boolean>
             threadId,
             lockVer,
             null,
+            null,
             timeout,
             !inTx(),
             inTx(),
