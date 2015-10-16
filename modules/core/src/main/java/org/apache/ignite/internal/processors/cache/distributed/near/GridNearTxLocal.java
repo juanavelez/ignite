@@ -60,10 +60,10 @@ import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.typedef.C1;
 import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.CU;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
-import org.apache.ignite.lang.IgniteBiInClosure;
 import org.apache.ignite.lang.IgniteUuid;
 import org.apache.ignite.transactions.TransactionConcurrency;
 import org.apache.ignite.transactions.TransactionIsolation;
@@ -348,30 +348,23 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
         boolean readThrough,
         boolean async,
         final Collection<KeyCacheObject> keys,
-        boolean deserializePortable,
         boolean skipVals,
-        boolean needVer,
+        final boolean needVer,
         final GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c
     ) {
         if (cacheCtx.isNear()) {
             return cacheCtx.nearTx().txLoadAsync(this,
                 keys,
                 readThrough,
-                deserializePortable,
+                /*deserializePortable*/false,
                 accessPolicy(cacheCtx, keys),
                 skipVals,
-                needVer,
-                c).chain(new C1<IgniteInternalFuture<Map<Object, Object>>, Void>() {
+                needVer).chain(new C1<IgniteInternalFuture<Map<Object, Object>>, Void>() {
                 @Override public Void apply(IgniteInternalFuture<Map<Object, Object>> f) {
                     try {
                         Map<Object, Object> map = f.get();
 
-                        if (map != null && map.size() != keys.size()) {
-                            for (KeyCacheObject key : keys) {
-                                if (!map.containsKey(key))
-                                    c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
-                            }
-                        }
+                        processLoaded(map, keys, needVer, c);
 
                         return null;
                     }
@@ -392,23 +385,18 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
                 topologyVersion(),
                 CU.subjectId(this, cctx),
                 resolveTaskName(),
-                deserializePortable,
+                /*deserializePortable*/false,
                 accessPolicy(cacheCtx, keys),
                 skipVals,
                 /*can remap*/true,
                 needVer,
-                c
+                /*keepCacheObject*/true
             ).chain(new C1<IgniteInternalFuture<Map<Object, Object>>, Void>() {
                 @Override public Void apply(IgniteInternalFuture<Map<Object, Object>> f) {
                     try {
                         Map<Object, Object> map = f.get();
 
-                        if (map != null && map.size() != keys.size()) {
-                            for (KeyCacheObject key : keys) {
-                                if (!map.containsKey(key))
-                                    c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
-                            }
-                        }
+                        processLoaded(map, keys, needVer, c);
 
                         return null;
                     }
@@ -422,7 +410,43 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
         } else {
             assert cacheCtx.isLocal();
 
-            return super.loadMissing(cacheCtx, readThrough, async, keys, deserializePortable, skipVals, needVer, c);
+            return super.loadMissing(cacheCtx, readThrough, async, keys, skipVals, needVer, c);
+        }
+    }
+
+    /**
+     * @param map Loaded values.
+     * @param keys Keys.
+     * @param needVer If {@code true} version is required for loaded values.
+     * @param c Closure.
+     */
+    private void processLoaded(
+        Map<Object, Object> map,
+        final Collection<KeyCacheObject> keys,
+        boolean needVer,
+        GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c) {
+        for (KeyCacheObject key : keys) {
+            Object val = map.get(key);
+
+            if (val != null) {
+                Object v;
+                GridCacheVersion ver;
+
+                if (needVer) {
+                    T2<Object, GridCacheVersion> t = (T2)val;
+
+                    v = t.get1();
+                    ver = t.get2();
+                }
+                else {
+                    v = val;
+                    ver = null;
+                }
+
+                c.apply(key, v, ver);
+            }
+            else
+                c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
         }
     }
 
@@ -632,7 +656,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
         Collection<GridCacheVersion> committedVers,
         Collection<GridCacheVersion> rolledbackVers)
     {
-        Collection<IgniteTxEntry> entries = F.concat(false, mapping.reads(), mapping.writes());
+        Collection<IgniteTxEntry> entries = F.concat(false, mapping.writes(), mapping.reads());
 
         for (IgniteTxEntry txEntry : entries) {
             while (true) {

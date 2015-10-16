@@ -421,7 +421,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
         final boolean readThrough,
         boolean async,
         final Collection<KeyCacheObject> keys,
-        boolean deserializePortable,
         boolean skipVals,
         boolean needVer,
         final GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c
@@ -1621,7 +1620,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                 !skipStore,
                 false,
                 missedMap.keySet(),
-                deserializePortable,
                 skipVals,
                 needReadVer,
                 new GridInClosure3<KeyCacheObject, Object, GridCacheVersion>() {
@@ -1658,15 +1656,13 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                             cacheCtx.evicts().touch(e, topologyVersion());
 
                             if (visibleVal != null) {
-                                synchronized (map) {
-                                    cacheCtx.addResult(map,
-                                        key,
-                                        visibleVal,
-                                        skipVals,
-                                        keepCacheObjects,
-                                        deserializePortable,
-                                        false);
-                                }
+                                cacheCtx.addResult(map,
+                                    key,
+                                    visibleVal,
+                                    skipVals,
+                                    keepCacheObjects,
+                                    deserializePortable,
+                                    false);
                             }
                         }
                         else {
@@ -1681,15 +1677,13 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                             }
 
                             if (visibleVal != null) {
-                                synchronized (map) {
-                                    cacheCtx.addResult(map,
-                                        key,
-                                        visibleVal,
-                                        skipVals,
-                                        keepCacheObjects,
-                                        deserializePortable,
-                                        false);
-                                }
+                                cacheCtx.addResult(map,
+                                    key,
+                                    visibleVal,
+                                    skipVals,
+                                    keepCacheObjects,
+                                    deserializePortable,
+                                    false);
                             }
                         }
                     }
@@ -2367,7 +2361,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                 /*read through*/cacheCtx.config().isLoadPreviousValue() && !skipStore,
                 /*async*/true,
                 missedForLoad,
-                deserializePortables(cacheCtx),
                 skipVals,
                 needReadVer,
                 new GridInClosure3<KeyCacheObject, Object, GridCacheVersion>() {

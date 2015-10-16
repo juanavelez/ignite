@@ -156,7 +156,6 @@ public interface IgniteTxLocalEx extends IgniteInternalTx {
      * @param readThrough Read through flag.
      * @param async if {@code True}, then loading will happen in a separate thread.
      * @param keys Keys.
-     * @param deserializePortable Deserialize portable flag.
      * @param skipVals Skip values flag.
      * @param needVer If {@code true} version is required for loaded values.
      * @param c Closure to be applied for loaded values.
@@ -167,7 +166,6 @@ public interface IgniteTxLocalEx extends IgniteInternalTx {
         boolean readThrough,
         boolean async,
         Collection<KeyCacheObject> keys,
-        boolean deserializePortable,
         boolean skipVals,
         boolean needVer,
         GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c);

@@ -204,13 +204,6 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
 
             checkObsolete();
 
-            if (serReadVer != null) {
-                unswap(false);
-
-                if (!checkSerializableReadVersion(serReadVer))
-                    return null;
-            }
-
             GridCacheMvcc mvcc = mvccExtras();
 
             if (mvcc == null) {

@@ -181,8 +181,7 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
         boolean deserializePortable,
         @Nullable IgniteCacheExpiryPolicy expiryPlc,
         boolean skipVals,
-        boolean needVer,
-        final GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c) {
+        boolean needVer) {
         assert tx != null;
 
         GridNearGetFuture<K, V> fut = new GridNearGetFuture<>(ctx,
@@ -196,9 +195,9 @@ public class GridNearTransactionalCache<K, V> extends GridNearCacheAdapter<K, V>
             deserializePortable,
             expiryPlc,
             skipVals,
-            needVer,
             /*can remap*/true,
-            c);
+            needVer,
+            true);
 
         // init() will register future for responses if it has remote mappings.
         fut.init();

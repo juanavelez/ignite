@@ -37,7 +37,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryRemovedException;
-import org.apache.ignite.internal.processors.cache.GridCacheFilterFailedException;
 import org.apache.ignite.internal.processors.cache.GridCacheMessage;
 import org.apache.ignite.internal.processors.cache.IgniteCacheExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
@@ -48,7 +47,6 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.GridLeanMap;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
-import org.apache.ignite.internal.util.lang.GridInClosure3;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.C1;
 import org.apache.ignite.internal.util.typedef.CI1;
@@ -96,8 +94,8 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
      * @param expiryPlc Expiry policy.
      * @param skipVals Skip values flag.
      * @param canRemap Flag indicating whether future can be remapped on a newer topology version.
-     * @param needVer If {@code true} need provide entry version to result closure.
-     * @param resC Closure applied on 'get' result.
+     * @param needVer If {@code true} returns values as tuples containing value and version.
+     * @param keepCacheObjects Keep cache objects flag.
      */
     public GridPartitionedGetFuture(
         GridCacheContext<K, V> cctx,
@@ -113,7 +111,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         boolean skipVals,
         boolean canRemap,
         boolean needVer,
-        @Nullable GridInClosure3<KeyCacheObject, Object, GridCacheVersion> resC
+        boolean keepCacheObjects
     ) {
         super(cctx,
             keys,
@@ -127,7 +125,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
             skipVals,
             canRemap,
             needVer,
-            resC);
+            keepCacheObjects);
 
         this.topVer = topVer;
 
@@ -264,7 +262,7 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
 
         final int keysSize = keys.size();
 
-        Map<K, V> locVals = resC == null ? U.<K, V>newHashMap(keysSize) : null;
+        Map<K, V> locVals = U.newHashMap(keysSize);
 
         boolean hasRmtNodes = false;
 
@@ -454,10 +452,16 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                                     colocated.removeIfObsolete(key);
                             }
                             else {
-                                if (resC != null)
-                                    resultClosureValue(key, skipVals ? true : v, ver);
+                                if (needVer)
+                                    versionedResult(locVals, key, v, ver);
                                 else
-                                    cctx.addResult(locVals, key, v, skipVals, false, deserializePortable, true);
+                                    cctx.addResult(locVals,
+                                        key,
+                                        v,
+                                        skipVals,
+                                        keepCacheObjects,
+                                        deserializePortable,
+                                        true);
 
                                 return false;
                             }
@@ -550,24 +554,24 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
         int keysSize = infos.size();
 
         if (keysSize != 0) {
-            if (resC != null) {
-                for (GridCacheEntryInfo info : infos) {
-                    assert skipVals == (info.value() == null);
+            Map<K, V> map = new GridLeanMap<>(keysSize);
 
-                    resultClosureValue(info.key(), skipVals ? true : info.value(), info.version());
-                }
+            for (GridCacheEntryInfo info : infos) {
+                assert skipVals == (info.value() == null);
+
+                if (needVer)
+                    versionedResult(map, info.key(), info.value(), info.version());
+                else
+                    cctx.addResult(map,
+                        info.key(),
+                        info.value(),
+                        skipVals,
+                        keepCacheObjects,
+                        deserializePortable,
+                        false);
             }
-            else {
-                Map<K, V> map = new GridLeanMap<>(keysSize);
 
-                for (GridCacheEntryInfo info : infos) {
-                    assert skipVals == (info.value() == null);
-
-                    cctx.addResult(map, info.key(), info.value(), skipVals, false, deserializePortable, false);
-                }
-
-                return map;
-            }
+            return map;
         }
 
         return Collections.emptyMap();

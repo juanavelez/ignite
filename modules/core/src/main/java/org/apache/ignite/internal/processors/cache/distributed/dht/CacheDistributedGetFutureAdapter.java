@@ -27,13 +27,11 @@ import org.apache.ignite.internal.processors.cache.IgniteCacheExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.future.GridCompoundIdentityFuture;
-import org.apache.ignite.internal.util.lang.GridInClosure3;
 import org.apache.ignite.internal.util.typedef.F;
+import org.apache.ignite.internal.util.typedef.T2;
 import org.apache.ignite.internal.util.typedef.internal.CU;
-import org.apache.ignite.lang.IgniteReducer;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
-import org.jsr166.ConcurrentHashMap8;
 
 import static org.apache.ignite.IgniteSystemProperties.IGNITE_NEAR_GET_MAX_REMAPS;
 import static org.apache.ignite.IgniteSystemProperties.getInteger;
@@ -95,7 +93,7 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
     protected final boolean needVer;
 
     /** */
-    protected final GridInClosure3<KeyCacheObject, Object, GridCacheVersion> resC;
+    protected final boolean keepCacheObjects;
 
     /**
      * @param cctx Context.
@@ -110,8 +108,8 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
      * @param expiryPlc Expiry policy.
      * @param skipVals Skip values flag.
      * @param canRemap Flag indicating whether future can be remapped on a newer topology version.
-     * @param resC Closure applied on 'get' result.
-     * @param needVer If {@code true} need provide entry version to result closure.
+     * @param needVer If {@code true} returns values as tuples containing value and version.
+     * @param keepCacheObjects Keep cache objects flag.
      */
     protected CacheDistributedGetFutureAdapter(
         GridCacheContext<K, V> cctx,
@@ -126,13 +124,11 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
         boolean skipVals,
         boolean canRemap,
         boolean needVer,
-        @Nullable GridInClosure3<KeyCacheObject, Object, GridCacheVersion> resC
+        boolean keepCacheObjects
     ) {
-        super(cctx.kernalContext(),
-            resC != null ? new ResultClosureReducer<K, V>(keys.size()) : CU.<K, V>mapsReducer(keys.size()));
+        super(cctx.kernalContext(), CU.<K, V>mapsReducer(keys.size()));
 
         assert !F.isEmpty(keys);
-        assert !needVer || resC != null;
 
         this.cctx = cctx;
         this.keys = keys;
@@ -146,63 +142,23 @@ public abstract class CacheDistributedGetFutureAdapter<K, V> extends GridCompoun
         this.skipVals = skipVals;
         this.canRemap = canRemap;
         this.needVer = needVer;
-        this.resC = resC;
+        this.keepCacheObjects = keepCacheObjects;
 
         futId = IgniteUuid.randomUuid();
     }
 
     /**
+     * @param map Result map.
      * @param key Key.
      * @param val Value.
      * @param ver Version.
      */
     @SuppressWarnings("unchecked")
-    protected final void resultClosureValue(KeyCacheObject key, Object val, GridCacheVersion ver) {
-        assert resC != null;
-        assert val != null;
-        assert !needVer || ver != null;
+    protected final void versionedResult(Map map, KeyCacheObject key, Object val, GridCacheVersion ver) {
+        assert needVer;
+        assert skipVals || val != null;
+        assert ver != null;
 
-        ResultClosureReducer<K, V> rdc = (ResultClosureReducer)reducer();
-
-        assert rdc != null;
-
-        rdc.collect(key);
-
-        resC.apply(key, skipVals ? true : val, ver);
-    }
-
-    /**
-     *
-     */
-    private static class ResultClosureReducer<K, V> implements IgniteReducer<Map<K, V>, Map<K, V>>  {
-        /** */
-        private static final long serialVersionUID = 0L;
-
-        /** */
-        private final ConcurrentHashMap8<KeyCacheObject, Boolean> map;
-
-        /**
-         * @param keys Number of keys.
-         */
-        public ResultClosureReducer(int keys) {
-            this.map = new ConcurrentHashMap8<>(keys);
-        }
-
-        /**
-         * @param key Key.
-         */
-        void collect(KeyCacheObject key) {
-            map.put(key, Boolean.TRUE);
-        }
-
-        /** {@inheritDoc} */
-        @Override public boolean collect(@Nullable Map<K, V> map) {
-            return true;
-        }
-
-        /** {@inheritDoc} */
-        @Override public Map<K, V> reduce() {
-            return (Map)map;
-        }
+        map.put(key, new T2<>(skipVals ? true : val, ver));
     }
 }

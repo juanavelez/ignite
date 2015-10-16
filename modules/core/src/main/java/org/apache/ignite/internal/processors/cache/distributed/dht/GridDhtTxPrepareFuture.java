@@ -818,11 +818,18 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
         this.writes = writes;
         this.txNodes = txNodes;
 
-        if (!F.isEmpty(writes)) {
+        boolean ser = tx.optimistic() && tx.serializable();
+
+        if (!F.isEmpty(writes) || (ser && !F.isEmpty(reads))) {
             Map<Integer, Collection<KeyCacheObject>> forceKeys = null;
 
             for (IgniteTxEntry entry : writes)
                 forceKeys = checkNeedRebalanceKeys(entry, forceKeys);
+
+            if (ser) {
+                for (IgniteTxEntry entry : reads)
+                    forceKeys = checkNeedRebalanceKeys(entry, forceKeys);
+            }
 
             forceKeysFut = forceRebalanceKeys(forceKeys);
         }
@@ -852,7 +859,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
         IgniteTxEntry e,
         Map<Integer, Collection<KeyCacheObject>> map
     ) {
-        if (retVal || !F.isEmpty(e.entryProcessors()) || !F.isEmpty(e.filters())) {
+        if (retVal ||
+            !F.isEmpty(e.entryProcessors()) ||
+            !F.isEmpty(e.filters()) ||
+            e.serializableReadVersion() != null) {
             if (map == null)
                 map = new HashMap<>();
 
@@ -914,17 +924,31 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
      * @param entries Entries.
      * @return Not null exception if version check failed.
      */
-    @Nullable private IgniteTxOptimisticCheckedException checkReadConflict(Collection<IgniteTxEntry> entries) {
-        for (IgniteTxEntry entry : entries) {
-            GridCacheVersion serReadVer = entry.serializableReadVersion();
+    @Nullable private IgniteCheckedException checkReadConflict(Collection<IgniteTxEntry> entries) {
+        try {
+            for (IgniteTxEntry entry : entries) {
+                GridCacheVersion serReadVer = entry.serializableReadVersion();
 
-            if (serReadVer != null && !entry.cached().checkSerializableReadVersion(serReadVer)) {
-                GridCacheContext cctx = entry.context();
+                if (serReadVer != null) {
+                    entry.cached().unswap();
 
-                return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
-                    "read conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
-                    ", cache=" + cctx.name() + ']');
+                    if (!entry.cached().checkSerializableReadVersion(serReadVer)) {
+                        GridCacheContext cctx = entry.context();
+
+                        return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
+                            "read/write conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
+                            ", cache=" + cctx.name() + ']');
+                    }
+                }
             }
+        }
+        catch (IgniteCheckedException e) {
+            U.error(log, "Failed to unswap entry: " + e, e);
+
+            return e;
+        }
+        catch (GridCacheEntryRemovedException e) {
+            assert false : "Got removed exception on entry with dht local candidate: " + entries;
         }
 
         return null;
@@ -936,7 +960,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     private void prepare0() {
         try {
             if (tx.optimistic() && tx.serializable()) {
-                IgniteTxOptimisticCheckedException err0 = checkReadConflict(writes);
+                IgniteCheckedException err0 = checkReadConflict(writes);
 
                 if (err0 == null)
                     err0 = checkReadConflict(reads);

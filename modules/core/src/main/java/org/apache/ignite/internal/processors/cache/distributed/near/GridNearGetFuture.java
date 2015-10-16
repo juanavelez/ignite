@@ -101,8 +101,8 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
      * @param expiryPlc Expiry policy.
      * @param skipVals Skip values flag.
      * @param canRemap Flag indicating whether future can be remapped on a newer topology version.
-     * @param needVer If {@code true} need provide entry version to result closure.
-     * @param resC Closure applied on 'get' result.
+     * @param needVer If {@code true} returns values as tuples containing value and version.
+     * @param keepCacheObjects Keep cache objects flag.
      */
     public GridNearGetFuture(
         GridCacheContext<K, V> cctx,
@@ -118,7 +118,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         boolean skipVals,
         boolean canRemap,
         boolean needVer,
-        @Nullable GridInClosure3<KeyCacheObject, Object, GridCacheVersion> resC
+        boolean keepCacheObjects
     ) {
         super(cctx,
             keys,
@@ -132,10 +132,9 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
             skipVals,
             canRemap,
             needVer,
-            resC);
+            keepCacheObjects);
 
         assert !F.isEmpty(keys);
-        assert !needVer || resC != null;
 
         this.tx = tx;
 
@@ -530,7 +529,12 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                 }
 
                 if (v != null && !reload) {
-                    if (resC == null) {
+                    if (needVer) {
+                        V val0 = (V)new T2<>(skipVals ? true : v, ver);
+
+                        add(new GridFinishedFuture<>(Collections.singletonMap((K)key, val0)));
+                    }
+                    else {
                         K key0 = key.value(cctx.cacheObjectContext(), true);
                         V val0 = v.value(cctx.cacheObjectContext(), true);
 
@@ -539,8 +543,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
 
                         add(new GridFinishedFuture<>(Collections.singletonMap(key0, val0)));
                     }
-                    else
-                        resultClosureValue(key, v, ver);
                 }
                 else {
                     if (affNode == null) {
@@ -661,7 +663,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
     ) {
         boolean empty = F.isEmpty(keys);
 
-        Map<K, V> map = (resC != null || empty) ? Collections.<K, V>emptyMap() : new GridLeanMap<K, V>(keys.size());
+        Map<K, V> map = empty ? Collections.<K, V>emptyMap() : new GridLeanMap<K, V>(keys.size());
 
         if (!empty) {
             boolean atomic = cctx.atomic();
@@ -699,10 +701,16 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
 
                     assert skipVals == (info.value() == null);
 
-                    if (resC != null)
-                        resultClosureValue(key, skipVals ? true : val, info.version());
+                    if (needVer)
+                        versionedResult(map, key, val, info.version());
                     else
-                        cctx.addResult(map, key, val, skipVals, false, deserializePortable, false);
+                        cctx.addResult(map,
+                            key,
+                            val,
+                            skipVals,
+                            keepCacheObjects,
+                            deserializePortable,
+                            false);
                 }
                 catch (GridCacheEntryRemovedException ignore) {
                     if (log.isDebugEnabled())

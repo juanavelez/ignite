@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +71,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.ignite.cache.CacheAtomicityMode.TRANSACTIONAL;
 import static org.apache.ignite.cache.CacheMode.PARTITIONED;
 import static org.apache.ignite.cache.CacheMode.REPLICATED;
+import static org.apache.ignite.cache.CacheRebalanceMode.SYNC;
 import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 import static org.apache.ignite.testframework.GridTestUtils.TestMemoryMode;
 import static org.apache.ignite.testframework.GridTestUtils.runMultiThreadedAsync;
@@ -3031,6 +3033,153 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
         }
         finally {
             ignite0.destroyCache(cacheName);
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testNoOptimisticExceptionChangingTopology() throws Exception {
+        if (FAST)
+            return;
+
+        final AtomicBoolean finished = new AtomicBoolean();
+
+        final List<String> cacheNames = new ArrayList<>();
+
+        Ignite srv = ignite(1);
+
+        try {
+            {
+                CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, false, false);
+                ccfg.setName("cache1");
+                ccfg.setRebalanceMode(SYNC);
+
+                srv.createCache(ccfg);
+
+                cacheNames.add(ccfg.getName());
+            }
+
+            {
+                // Store enabled.
+                CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, true, false);
+                ccfg.setName("cache2");
+                ccfg.setRebalanceMode(SYNC);
+
+                srv.createCache(ccfg);
+
+                cacheNames.add(ccfg.getName());
+            }
+
+            {
+                // Offheap.
+                CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, false, false);
+                ccfg.setName("cache3");
+                ccfg.setRebalanceMode(SYNC);
+
+                GridTestUtils.setMemoryMode(null, ccfg, TestMemoryMode.OFFHEAP_TIERED, 1, 64);
+
+                srv.createCache(ccfg);
+
+                cacheNames.add(ccfg.getName());
+            }
+
+            IgniteInternalFuture<?> restartFut = GridTestUtils.runAsync(new Callable<Object>() {
+                @Override public Object call() throws Exception {
+                    while (!finished.get()) {
+                        stopGrid(0);
+
+                        U.sleep(300);
+
+                        Ignite ignite = startGrid(0);
+
+                        assertFalse(ignite.configuration().isClientMode());
+                    }
+
+                    return null;
+                }
+            });
+
+            List<IgniteInternalFuture<?>> futs = new ArrayList<>();
+
+            final int KEYS_PER_THREAD = 100;
+
+            for (int i = 1; i < SRVS + CLIENTS; i++) {
+                final Ignite node = ignite(i);
+
+                final int minKey = i * KEYS_PER_THREAD;
+                final int maxKey = minKey + KEYS_PER_THREAD;
+
+                // Threads update non-intersecting keys, optimistic exception should not be thrown.
+
+                futs.add(GridTestUtils.runAsync(new Callable<Void>() {
+                    @Override public Void call() throws Exception {
+                        try {
+                            log.info("Started update thread [node=" + node.name() +
+                                ", minKey=" + minKey +
+                                ", maxKey=" + maxKey + ']');
+
+                            final ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+                            List<IgniteCache<Integer, Integer>> caches = new ArrayList<>();
+
+                            for (String cacheName : cacheNames)
+                                caches.add(node.<Integer, Integer>cache(cacheName));
+
+                            assertEquals(3, caches.size());
+
+                            int iter = 0;
+
+                            while (!finished.get()) {
+                                int keyCnt = rnd.nextInt(1, 10);
+
+                                final Set<Integer> keys = new LinkedHashSet<>();
+
+                                while (keys.size() < keyCnt)
+                                    keys.add(rnd.nextInt(minKey, maxKey));
+
+                                for (final IgniteCache<Integer, Integer> cache : caches) {
+                                    doInTransaction(node, OPTIMISTIC, SERIALIZABLE, new Callable<Void>() {
+                                        @Override public Void call() throws Exception {
+                                            for (Integer key : keys)
+                                                randomOperation(rnd, cache, key);
+
+                                            return null;
+                                        }
+                                    });
+                                }
+
+                                if (iter % 100 == 0)
+                                    log.info("Iteration: " + iter);
+
+                                iter++;
+                            }
+
+                            return null;
+                        }
+                        catch (Throwable e) {
+                            log.error("Unexpected error: " + e, e);
+
+                            throw e;
+                        }
+                    }
+                }, "update-thread-" + i));
+            }
+
+            U.sleep(60_000);
+
+            finished.set(true);
+
+            restartFut.get();
+
+            for (IgniteInternalFuture<?> fut : futs)
+                fut.get();
+        }
+        finally {
+            for (String cacheName : cacheNames)
+                srv.destroyCache(cacheName);
+
+            finished.set(true);
         }
     }
 

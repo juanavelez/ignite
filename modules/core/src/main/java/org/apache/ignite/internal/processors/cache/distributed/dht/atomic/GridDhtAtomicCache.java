@@ -1040,7 +1040,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
             skipVals,
             canRemap,
             false,
-            null);
+            false);
 
         fut.init();
 

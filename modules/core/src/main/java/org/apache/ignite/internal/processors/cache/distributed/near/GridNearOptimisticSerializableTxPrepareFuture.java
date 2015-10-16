@@ -64,6 +64,7 @@ import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteBiTuple;
 import org.apache.ignite.lang.IgniteClosure;
+import org.apache.ignite.lang.IgniteProductVersion;
 import org.apache.ignite.lang.IgniteReducer;
 import org.apache.ignite.lang.IgniteUuid;
 import org.jetbrains.annotations.Nullable;
@@ -77,6 +78,9 @@ import static org.apache.ignite.transactions.TransactionState.PREPARING;
  */
 public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPrepareFutureAdapter
     implements GridCacheMvccFuture<IgniteInternalTx> {
+    /** */
+    public static final IgniteProductVersion SER_TX_SINCE = IgniteProductVersion.fromString("1.5.0");
+
     /** */
     @GridToStringExclude
     private KeyLockFuture keyLockFut = new KeyLockFuture();
@@ -104,7 +108,9 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
         if (log.isDebugEnabled())
             log.debug("Transaction future received owner changed callback: " + entry);
 
-        if ((entry.context().isNear() || entry.context().isLocal()) && owner != null && tx.hasWriteKey(entry.txKey())) {
+        if ((entry.context().isNear() || entry.context().isLocal())
+            && owner != null &&
+            tx.entry(entry.txKey()) != null) {
             keyLockFut.onKeyLocked(entry.txKey());
 
             return true;
@@ -477,7 +483,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearTxPre
             map(write, topVer, mappings, true, remap);
 
         for (IgniteTxEntry read : reads)
-            map(read, topVer, mappings, false, remap);
+            map(read, topVer, mappings, true, remap);
 
         keyLockFut.onAllKeysAdded();
 

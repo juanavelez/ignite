@@ -18,7 +18,6 @@
 package org.apache.ignite.internal.processors.cache.distributed.near;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -450,10 +449,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
                 return;
             }
 
-            prepare(
-                Collections.<IgniteTxEntry>emptyList(),
-                tx.writeEntries(),
-                topLocked);
+            prepare(tx.writeEntries(), topLocked);
 
             markInitialized();
         }
@@ -466,13 +462,11 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
     }
 
     /**
-     * @param reads Read entries.
      * @param writes Write entries.
      * @param topLocked {@code True} if thread already acquired lock preventing topology change.
      * @throws IgniteCheckedException If failed.
      */
     private void prepare(
-        Iterable<IgniteTxEntry> reads,
         Iterable<IgniteTxEntry> writes,
         boolean topLocked
     ) throws IgniteCheckedException {
@@ -484,7 +478,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
 
         ConcurrentLinkedDeque8<GridDistributedTxMapping> mappings = new ConcurrentLinkedDeque8<>();
 
-        if (!F.isEmpty(reads) || !F.isEmpty(writes)) {
+        if (!F.isEmpty(writes)) {
             for (int cacheId : tx.activeCacheIds()) {
                 GridCacheContext<?, ?> cacheCtx = cctx.cacheContext(cacheId);
 
@@ -500,25 +494,8 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
         // Assign keys to primary nodes.
         GridDistributedTxMapping cur = null;
 
-        for (IgniteTxEntry read : reads) {
-            GridDistributedTxMapping updated = map(read, topVer, cur, false, topLocked);
-
-            if (cur != updated) {
-                mappings.offer(updated);
-
-                if (updated.node().isLocal()) {
-                    if (read.context().isNear())
-                        tx.nearLocallyMapped(true);
-                    else if (read.context().isColocated())
-                        tx.colocatedLocallyMapped(true);
-                }
-
-                cur = updated;
-            }
-        }
-
         for (IgniteTxEntry write : writes) {
-            GridDistributedTxMapping updated = map(write, topVer, cur, true, topLocked);
+            GridDistributedTxMapping updated = map(write, topVer, cur, topLocked);
 
             if (cur != updated) {
                 mappings.offer(updated);
@@ -650,7 +627,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
      * @param entry Transaction entry.
      * @param topVer Topology version.
      * @param cur Current mapping.
-     * @param waitLock Wait lock flag.
      * @param topLocked {@code True} if thread already acquired lock preventing topology change.
      * @return Mapping.
      */
@@ -658,7 +634,6 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
         IgniteTxEntry entry,
         AffinityTopologyVersion topVer,
         @Nullable GridDistributedTxMapping cur,
-        boolean waitLock,
         boolean topLocked
     ) {
         GridCacheContext cacheCtx = entry.context();
@@ -686,7 +661,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearTxPrepareFutureAd
             entry.cached(cacheCtx.local().entryEx(entry.key(), topVer));
 
         if (cacheCtx.isNear() || cacheCtx.isLocal()) {
-            if (waitLock && entry.explicitVersion() == null)
+            if (entry.explicitVersion() == null)
                 lockKeys.add(entry.txKey());
         }
 

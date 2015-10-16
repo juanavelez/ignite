@@ -290,7 +290,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
             skipVals,
             canRemap,
             false,
-            null);
+            false);
     }
 
     /**
@@ -319,7 +319,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
         boolean skipVals,
         boolean canRemap,
         boolean needVer,
-        @Nullable GridInClosure3<KeyCacheObject, Object, GridCacheVersion> c
+        boolean keepCacheObject
     ) {
         if (keys == null || keys.isEmpty())
             return new GridFinishedFuture<>(Collections.<K, V>emptyMap());
@@ -330,7 +330,6 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
         // Optimisation: try to resolve value locally and escape 'get future' creation.
         if (!reload && !forcePrimary) {
             Map<K, V> locVals = null;
-            Map<KeyCacheObject, T2<Object, GridCacheVersion>> locVals0 = null;
 
             boolean success = true;
 
@@ -391,18 +390,19 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
                                 success = false;
                             }
                             else {
-                                if (c != null) {
-                                    if (locVals0 == null)
-                                        locVals0 = U.newHashMap(keys.size());
+                                if (locVals == null)
+                                    locVals = U.newHashMap(keys.size());
 
-                                    locVals0.put(key, new T2<>((Object)(skipVals ? true : v), ver));
-                                }
-                                else {
-                                    if (locVals == null)
-                                        locVals = U.newHashMap(keys.size());
-
-                                    ctx.addResult(locVals, key, v, skipVals, false, deserializePortable, true);
-                                }
+                                if (needVer)
+                                    locVals.put((K)key, (V)new T2<>((Object)(skipVals ? true : v), ver));
+                                else
+                                    ctx.addResult(locVals,
+                                        key,
+                                        v,
+                                        skipVals,
+                                        keepCacheObject,
+                                        deserializePortable,
+                                        true);
                             }
                         }
                         else
@@ -436,13 +436,6 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
             if (success) {
                 sendTtlUpdateRequest(expiryPlc);
 
-                if (c != null) {
-                    if (locVals0 != null) {
-                        for (Map.Entry<KeyCacheObject, T2<Object, GridCacheVersion>> e : locVals0.entrySet())
-                            c.apply(e.getKey(), e.getValue().get1(), e.getValue().get2());
-                    }
-                }
-
                 return new GridFinishedFuture<>(locVals);
             }
         }
@@ -465,7 +458,7 @@ public class GridDhtColocatedCache<K, V> extends GridDhtTransactionalCacheAdapte
             skipVals,
             canRemap,
             needVer,
-            c);
+            keepCacheObject);
 
         fut.init();
 
