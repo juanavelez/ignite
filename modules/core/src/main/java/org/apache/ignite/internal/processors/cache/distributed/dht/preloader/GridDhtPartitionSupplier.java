@@ -34,6 +34,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfoCollectSwapListener;
+import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.GridCacheSwapEntry;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheEntry;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtLocalPartition;
@@ -187,9 +188,22 @@ class GridDhtPartitionSupplier {
         assert d != null;
         assert id != null;
 
-        if (!cctx.affinity().affinityTopologyVersion().equals(d.topologyVersion())) {
+        AffinityTopologyVersion cutTop = cctx.affinity().affinityTopologyVersion();
+        AffinityTopologyVersion demTop = d.topologyVersion();
 
-            U.log(log, "Demand request cancelled [current=" + cctx.affinity().affinityTopologyVersion() + ", demanded=" + d.topologyVersion() + "]");
+        if (!cutTop.equals(demTop)) {
+            if (cutTop.compareTo(demTop) < 0)
+                // Resend demand message.
+                try {
+                    cctx.io().sendOrderedMessage(cctx.localNode(), GridCachePartitionExchangeManager.rebalanceTopic(idx),
+                        d, cctx.ioPolicy(), cctx.config().getRebalanceTimeout());
+                }
+                catch (IgniteCheckedException e) {
+                    U.error(log, "Failed to resend partition supply message to local node: " + cctx.localNode().id());
+                }
+            else if (log.isDebugEnabled())
+                log.debug("Demand request cancelled [current=" + cctx.affinity().affinityTopologyVersion() + ", demanded=" + d.topologyVersion() + "]");
+
             return;
         }
 
@@ -228,9 +242,8 @@ class GridDhtPartitionSupplier {
                 maxBatchesCnt = 1;
             }
             else {
-//                if (log.isDebugEnabled())
-//                    log.debug
-                        U.log(log, "Starting supplying rebalancing [cache=" + cctx.name() +
+                if (log.isDebugEnabled())
+                    log.debug("Starting supplying rebalancing [cache=" + cctx.name() +
                         ", fromNode=" + node.id() + ", partitionsCount=" + d.partitions().size() +
                         ", topology=" + d.topologyVersion() + ", updateSeq=" + d.updateSequence() +
                         ", idx=" + idx + "]");
@@ -571,9 +584,8 @@ class GridDhtPartitionSupplier {
 
             reply(node, d, s, scId);
 
-//            if (log.isDebugEnabled())
-//                log.debug(
-                    U.log(log, "Finished supplying rebalancing [cache=" + cctx.name() +
+            if (log.isDebugEnabled())
+                log.debug("Finished supplying rebalancing [cache=" + cctx.name() +
                     ", fromNode=" + node.id() +
                     ", topology=" + d.topologyVersion() + ", updateSeq=" + d.updateSequence() +
                     ", idx=" + idx + "]");
@@ -597,9 +609,8 @@ class GridDhtPartitionSupplier {
         throws IgniteCheckedException {
 
         try {
-//            if (log.isDebugEnabled())
-//                log.debug
-                   U.log(log, "Replying to partition demand [node=" + n.id() + ", demand=" + d + ", supply=" + s + ']');
+            if (log.isDebugEnabled())
+                log.debug("Replying to partition demand [node=" + n.id() + ", demand=" + d + ", supply=" + s + ']');
 
             cctx.io().sendOrderedMessage(n, d.topic(), s, cctx.ioPolicy(), d.timeout());
 
@@ -610,9 +621,8 @@ class GridDhtPartitionSupplier {
             return true;
         }
         catch (ClusterTopologyCheckedException ignore) {
-//            if (log.isDebugEnabled())
-//                log.debug
-                    U.log(log, "Failed to send partition supply message because node left grid: " + n.id());
+            if (log.isDebugEnabled())
+                log.debug("Failed to send partition supply message because node left grid: " + n.id());
 
             clearContext(scMap.remove(scId), log);
 
