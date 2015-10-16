@@ -25,10 +25,12 @@ import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.CacheRebalanceMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.IgniteEx;
 import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemander;
+import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
@@ -311,6 +313,19 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         }
     }
 
+    protected void checkSupplyContextMapIsEmpty() {
+        for (Ignite g : G.allGrids()) {
+            for (GridCacheAdapter c : ((IgniteEx)g).context().cache().internalCaches()) {
+
+                Object supplier = U.field(c.preloader(), "supplier");
+
+                Map map = U.field(supplier, "scMap");
+
+                assert map.isEmpty();
+            }
+        }
+    }
+
 //    static{
 //        testTimeout = Integer.MAX_VALUE;
 //    }
@@ -362,6 +377,8 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
                     waitForRebalancing(2, 5, 0);
                     waitForRebalancing(3, 5, 0);
                     waitForRebalancing(4, 5, 0);
+
+                    checkSupplyContextMapIsEmpty();
 
                     //New cache should start rebalancing.
                     CacheConfiguration<Integer, Integer> cacheRCfg = new CacheConfiguration<>();
@@ -420,6 +437,8 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         waitForRebalancing(3, 5, 1);
         waitForRebalancing(4, 5, 1);
 
+        checkSupplyContextMapIsEmpty();
+
         checkData(grid(4), 0, 1);
 
         final Ignite ignite3 = grid(3);
@@ -456,6 +475,8 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         stopGrid(3);
 
         waitForRebalancing(4, 9);
+
+        checkSupplyContextMapIsEmpty();
 
         long spend = (System.currentTimeMillis() - start) / 1000;
 

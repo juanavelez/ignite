@@ -198,16 +198,21 @@ class GridDhtPartitionSupplier {
                     cctx.io().sendOrderedMessage(cctx.localNode(), GridCachePartitionExchangeManager.rebalanceTopic(idx),
                         d, cctx.ioPolicy(), cctx.config().getRebalanceTimeout());
 
-                    log.info("Demand request resended [current=" + cctx.affinity().affinityTopologyVersion() + ", demanded=" + d.topologyVersion() + "]");
+                    log.info("Demand request resended [current=" + cutTop + ", demanded=" + demTop +
+                        ", from=" + id + ", idx=" + idx + "]");
                 }
                 catch (IgniteCheckedException e) {
                     U.error(log, "Failed to resend partition supply message to local node: " + cctx.localNode().id());
                 }
             else if (log.isDebugEnabled())
-                log.info("Demand request cancelled [current=" + cctx.affinity().affinityTopologyVersion() + ", demanded=" + d.topologyVersion() + "]");
+                log.info("Demand request cancelled [current=" + cutTop + ", demanded=" + demTop +
+                    ", from=" + id + ", idx=" + idx + "]");
 
             return;
         }
+
+        log.info("Demand request accepted [current=" + cutTop + ", demanded=" + demTop +
+            ", from=" + id + ", idx=" + idx + "]");
 
         GridDhtPartitionSupplyMessageV2 s = new GridDhtPartitionSupplyMessageV2(
             d.updateSequence(), cctx.cacheId(), d.topologyVersion());
