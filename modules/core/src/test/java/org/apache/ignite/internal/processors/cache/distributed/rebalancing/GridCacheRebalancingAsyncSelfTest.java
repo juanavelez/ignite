@@ -17,9 +17,12 @@
 
 package org.apache.ignite.internal.processors.cache.distributed.rebalancing;
 
+import org.apache.ignite.Ignite;
 import org.apache.ignite.cache.CacheRebalanceMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
+import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemander;
+import org.apache.ignite.spi.discovery.tcp.TestTcpDiscoverySpi;
 
 /**
  *
@@ -34,5 +37,27 @@ public class GridCacheRebalancingAsyncSelfTest extends GridCacheRebalancingSyncS
         }
 
         return iCfg;
+    }
+
+    /**
+     * @throws Exception Exception.
+     */
+    public void testNodeFailedAtRebalancing() throws Exception {
+        Ignite ignite = startGrid(0);
+
+        generateData(ignite, 0, 0);
+
+        log.info("Preloading started.");
+
+        startGrid(1);
+
+        GridDhtPartitionDemander.RebalanceFuture fut = (GridDhtPartitionDemander.RebalanceFuture)grid(1).context().
+            cache().internalCache(CACHE_NAME_DHT_REPLICATED).preloader().rebalanceFuture();
+
+        fut.get();
+
+        ((TestTcpDiscoverySpi)grid(1).configuration().getDiscoverySpi()).simulateNodeFailure();
+
+        checkSupplyContextMapIsEmpty();
     }
 }

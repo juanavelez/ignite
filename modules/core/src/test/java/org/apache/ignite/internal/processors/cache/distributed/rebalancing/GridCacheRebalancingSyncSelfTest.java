@@ -34,7 +34,6 @@ import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
-import org.apache.ignite.spi.discovery.tcp.TestTcpDiscoverySpi;
 import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
@@ -506,30 +505,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         stopGrid(0);
 
         checkData(grid(1), 0, 0);
-    }
-
-    /**
-     * @throws Exception Exception.
-     */
-    public void testNodeFailedAtRebalancing() throws Exception {
-        Ignite ignite = startGrid(0);
-
-        generateData(ignite, 0, 0);
-
-        log.info("Preloading started.");
-
-        startGrid(1);
-
-        waitForRebalancing(1, 2);
-
-        startGrid(2);
-
-        waitForRebalancing(2, 3);
-
-        ((TestTcpDiscoverySpi)grid(2).configuration().getDiscoverySpi()).simulateNodeFailure();
-
-        waitForRebalancing(0, 4);
-        waitForRebalancing(1, 4);
     }
 
     @Override protected void afterTest() throws Exception {

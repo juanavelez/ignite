@@ -105,7 +105,8 @@ class GridDhtPartitionSupplier {
 
                             clearContext(sctx, log);
 
-                            U.log(log, "Supply context removed for node failed or left [node=" + t.get1() + "]");
+                            if (log.isDebugEnabled())
+                                log.debug("Supply context removed for failed or left node [node=" + t.get1() + "]");
 
                             scMap.remove(t, sctx);
                         }
@@ -190,27 +191,17 @@ class GridDhtPartitionSupplier {
         AffinityTopologyVersion cutTop = cctx.affinity().affinityTopologyVersion();
         AffinityTopologyVersion demTop = d.topologyVersion();
 
-        if (!cutTop.equals(demTop)) {
-            if (cutTop.compareTo(demTop) < 0)
-                // Resend demand message.
-                try {
-                    log.info("Demand request caused waiting for proper topology [current=" + cutTop + ", demanded=" + demTop +
-                        ", from=" + id + ", idx=" + idx + "]");
-
-                    cctx.discovery().topologyFuture(demTop.topologyVersion()).get();
-                }
-                catch (IgniteCheckedException e) {
-                    U.error(log, "Failed to resend partition supply message to local node: " + cctx.localNode().id());
-                }
-            else if (log.isDebugEnabled())
-                log.info("Demand request cancelled [current=" + cutTop + ", demanded=" + demTop +
+        if (cutTop.compareTo(demTop) > 0) {
+            if (log.isDebugEnabled())
+                log.debug("Demand request cancelled [current=" + cutTop + ", demanded=" + demTop +
                     ", from=" + id + ", idx=" + idx + "]");
 
             return;
         }
 
-        log.info("Demand request accepted [current=" + cutTop + ", demanded=" + demTop +
-            ", from=" + id + ", idx=" + idx + "]");
+        if (log.isDebugEnabled())
+            log.debug("Demand request accepted [current=" + cutTop + ", demanded=" + demTop +
+                ", from=" + id + ", idx=" + idx + "]");
 
         GridDhtPartitionSupplyMessageV2 s = new GridDhtPartitionSupplyMessageV2(
             d.updateSequence(), cctx.cacheId(), d.topologyVersion());
