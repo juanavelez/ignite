@@ -529,13 +529,21 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                         add(new GridFinishedFuture<>(Collections.singletonMap((K)key, val0)));
                     }
                     else {
-                        K key0 = key.value(cctx.cacheObjectContext(), true);
-                        V val0 = v.value(cctx.cacheObjectContext(), true);
+                        if (keepCacheObjects) {
+                            K key0 = (K)key;
+                            V val0 = (V)(skipVals ? true : v);
 
-                        val0 = (V)cctx.unwrapPortableIfNeeded(val0, !deserializePortable);
-                        key0 = (K)cctx.unwrapPortableIfNeeded(key0, !deserializePortable);
+                            add(new GridFinishedFuture<>(Collections.singletonMap(key0, val0)));
+                        }
+                        else {
+                            K key0 = key.value(cctx.cacheObjectContext(), true);
+                            V val0 = v.value(cctx.cacheObjectContext(), true);
 
-                        add(new GridFinishedFuture<>(Collections.singletonMap(key0, val0)));
+                            val0 = (V)cctx.unwrapPortableIfNeeded(val0, !deserializePortable);
+                            key0 = (K)cctx.unwrapPortableIfNeeded(key0, !deserializePortable);
+
+                            add(new GridFinishedFuture<>(Collections.singletonMap(key0, val0)));
+                        }
                     }
                 }
                 else {
