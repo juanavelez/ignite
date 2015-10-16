@@ -34,7 +34,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfoCollectSwapListener;
-import org.apache.ignite.internal.processors.cache.GridCachePartitionExchangeManager;
 import org.apache.ignite.internal.processors.cache.GridCacheSwapEntry;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtCacheEntry;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtLocalPartition;
@@ -195,11 +194,10 @@ class GridDhtPartitionSupplier {
             if (cutTop.compareTo(demTop) < 0)
                 // Resend demand message.
                 try {
-                    cctx.io().sendOrderedMessage(cctx.localNode(), GridCachePartitionExchangeManager.rebalanceTopic(idx),
-                        d, cctx.ioPolicy(), cctx.config().getRebalanceTimeout());
-
-                    log.info("Demand request resended [current=" + cutTop + ", demanded=" + demTop +
+                    log.info("Demand request caused waiting for proper topology [current=" + cutTop + ", demanded=" + demTop +
                         ", from=" + id + ", idx=" + idx + "]");
+
+                    cctx.discovery().topologyFuture(demTop.topologyVersion()).get();
                 }
                 catch (IgniteCheckedException e) {
                     U.error(log, "Failed to resend partition supply message to local node: " + cctx.localNode().id());
@@ -260,9 +258,6 @@ class GridDhtPartitionSupplier {
 
             while ((sctx != null && newReq) || partIt.hasNext()) {
                 int part = sctx != null && newReq ? sctx.part : partIt.next();
-
-                if (!cctx.affinity().affinityTopologyVersion().equals(d.topologyVersion()))
-                    return;
 
                 newReq = false;
 
