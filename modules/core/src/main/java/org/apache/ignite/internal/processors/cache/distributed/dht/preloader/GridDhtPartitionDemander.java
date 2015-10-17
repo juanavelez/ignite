@@ -225,39 +225,27 @@ public class GridDhtPartitionDemander {
      * @param name Cache name.
      * @param fut Future.
      */
-    private void waitForCacheRebalancing(String name, RebalanceFuture fut) {
+    private boolean waitForCacheRebalancing(String name, RebalanceFuture fut) throws IgniteCheckedException {
         if (log.isDebugEnabled())
             log.debug("Waiting for " + name + " cache rebalancing [cacheName=" + cctx.name() + ']');
 
-        try {
-            RebalanceFuture wFut = (RebalanceFuture)cctx.kernalContext().cache().internalCache(name).preloader().rebalanceFuture();
+        RebalanceFuture wFut = (RebalanceFuture)cctx.kernalContext().cache().internalCache(name).preloader().rebalanceFuture();
 
-            if (!topologyChanged(fut) && wFut.updateSeq == fut.updateSeq) {
-                if (!wFut.get()) {
-                    U.log(log, "Skipping waiting of " + name + " cache [top=" + fut.topologyVersion() +
-                        "] (cache rebalanced with missed partitions)");
-
-                    fut.cancel();
-                }
-            }
-            else {
+        if (!topologyChanged(fut) && wFut.updateSeq == fut.updateSeq) {
+            if (!wFut.get()) {
                 U.log(log, "Skipping waiting of " + name + " cache [top=" + fut.topologyVersion() +
-                    "] (topology already changed)");
+                    "] (cache rebalanced with missed partitions)");
 
-                fut.cancel();
+                return false;
             }
-        }
-        catch (IgniteInterruptedCheckedException ignored) {
-            if (log.isDebugEnabled()) {
-                log.debug("Failed to wait for " + name +
-                    "[cacheName=" + cctx.name() + ']');
-                fut.cancel();
-            }
-        }
-        catch (IgniteCheckedException e) {
-            fut.cancel();
 
-            throw new Error("Ordered rebalancing future should never fail: " + e.getMessage(), e);
+            return true;
+        }
+        else {
+            U.log(log, "Skipping waiting of " + name + " cache [top=" + fut.topologyVersion() +
+                "] (topology already changed)");
+
+            return false;
         }
     }
 
@@ -300,17 +288,13 @@ public class GridDhtPartitionDemander {
             }
 
             return new Callable<Boolean>() {
-                @Override public Boolean call() throws Exception{
+                @Override public Boolean call() throws Exception {
                     for (String c : caches) {
-                        waitForCacheRebalancing(c, fut);
-
-                        if (fut.isDone())
+                        if (!waitForCacheRebalancing(c, fut))
                             return false;
                     }
 
-                    requestPartitions(fut, assigns);
-
-                    return true;
+                    return requestPartitions(fut, assigns);
                 }
             };
         }
@@ -345,13 +329,11 @@ public class GridDhtPartitionDemander {
     /**
      * @param fut Future.
      */
-    private void requestPartitions(RebalanceFuture fut, GridDhtPreloaderAssignments assigns) throws IgniteCheckedException {
+    private boolean requestPartitions(RebalanceFuture fut,
+        GridDhtPreloaderAssignments assigns) throws IgniteCheckedException {
         for (Map.Entry<ClusterNode, GridDhtPartitionDemandMessage> e : assigns.entrySet()) {
-            if (topologyChanged(fut)) {
-                fut.cancel();
-
-                return;
-            }
+            if (topologyChanged(fut))
+                return false;
 
             final ClusterNode node = e.getKey();
 
@@ -418,6 +400,8 @@ public class GridDhtPartitionDemander {
                 dw.run(node, d);
             }
         }
+
+        return true;
     }
 
     /**
@@ -1360,7 +1344,7 @@ public class GridDhtPartitionDemander {
          * @param node Node.
          * @param d D.
          */
-        public void run(ClusterNode node, GridDhtPartitionDemandMessage d) throws IgniteCheckedException{
+        public void run(ClusterNode node, GridDhtPartitionDemandMessage d) throws IgniteCheckedException {
             demandLock.readLock().lock();
 
             try {
