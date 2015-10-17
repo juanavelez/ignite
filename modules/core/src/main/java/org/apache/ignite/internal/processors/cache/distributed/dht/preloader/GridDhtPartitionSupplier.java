@@ -130,6 +130,10 @@ class GridDhtPartitionSupplier {
         if (lsnr != null)
             cctx.events().removeListener(lsnr);
 
+        for (Map.Entry<T2<UUID, Integer>, SupplyContext> entry : scMap.entrySet()) {
+            clearContext(entry.getValue(), log);
+        }
+
         stopOldListeners();
     }
 

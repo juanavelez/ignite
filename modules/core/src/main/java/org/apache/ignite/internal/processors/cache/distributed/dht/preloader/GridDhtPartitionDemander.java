@@ -473,8 +473,6 @@ public class GridDhtPartitionDemander {
             return; // Supple message based on another future.
 
         if (topologyChanged(fut)) { // Topology already changed (for the future that supply message based on).
-            fut.cancel();
-
             return;
         }
 
@@ -583,15 +581,11 @@ public class GridDhtPartitionDemander {
                 cctx.io().sendOrderedMessage(node, GridCachePartitionExchangeManager.rebalanceTopic(idx),
                     d, cctx.ioPolicy(), cctx.config().getRebalanceTimeout());
             }
-            else
-                fut.cancel();
         }
         catch (ClusterTopologyCheckedException e) {
             if (log.isDebugEnabled())
                 log.debug("Node left during rebalancing [node=" + node.id() +
                     ", msg=" + e.getMessage() + ']');
-
-            fut.cancel();
         }
         catch (IgniteCheckedException ex) {
             U.error(log, "Failed to receive partitions from node (rebalancing will not " +
@@ -1355,8 +1349,6 @@ public class GridDhtPartitionDemander {
                 Collection<Integer> missed = new HashSet<>();
 
                 if (topologyChanged(fut)) {
-                    fut.cancel();
-
                     return;
                 }
 
@@ -1371,16 +1363,7 @@ public class GridDhtPartitionDemander {
                         missed.addAll(set);
                     }
                 }
-                catch (ClusterTopologyCheckedException e) {
-                    if (log.isDebugEnabled())
-                        log.debug("Node left during rebalancing (will retry) [node=" + node.id() +
-                            ", msg=" + e.getMessage() + ']');
-
-                    fut.cancel();
-                }
                 catch (InterruptedException e) {
-                    fut.cancel();
-
                     throw new IgniteCheckedException(e);
                 }
             }
