@@ -145,8 +145,6 @@ public class GridDhtPartitionDemander {
      * Stop.
      */
     void stop() {
-        rebalanceFut.onDone(false);
-
         lastExchangeFut = null;
 
         lastTimeoutObj.set(null);
