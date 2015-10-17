@@ -202,6 +202,9 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         supplier = new GridDhtPartitionSupplier(cctx);
         demander = new GridDhtPartitionDemander(cctx, demandLock);
 
+        supplier.start();
+        demander.start();
+
         cctx.events().addListener(discoLsnr, EVT_NODE_JOINED, EVT_NODE_LEFT, EVT_NODE_FAILED);
     }
 
@@ -219,9 +222,6 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
         final long startTopVer = loc.order();
 
         topVer.setIfGreater(startTopVer);
-
-        supplier.start();
-        demander.start();
     }
 
     /** {@inheritDoc} */
@@ -404,7 +404,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     }
 
     /** {@inheritDoc} */
-    public void handleDemandMessage(int idx, UUID id, GridDhtPartitionDemandMessage d){
+    public void handleDemandMessage(int idx, UUID id, GridDhtPartitionDemandMessage d) {
         supplier.handleDemandMessage(idx, id, d);
     }
 
