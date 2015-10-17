@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -267,8 +268,8 @@ public class GridDhtPartitionDemander {
      * @param cnt Counter.
      * @throws IgniteCheckedException Exception
      */
-    Runnable addAssignments(final GridDhtPreloaderAssignments assigns, boolean force, final Collection<String> caches,
-        int cnt) throws IgniteCheckedException {
+    Callable<Boolean> addAssignments(final GridDhtPreloaderAssignments assigns, boolean force,
+        final Collection<String> caches, int cnt) {
         if (log.isDebugEnabled())
             log.debug("Adding partition assignments: " + assigns);
 
@@ -298,17 +299,18 @@ public class GridDhtPartitionDemander {
                 return null;
             }
 
-            return new Runnable() {
-                @Override
-                public void run() {
+            return new Callable<Boolean>() {
+                @Override public Boolean call() throws Exception{
                     for (String c : caches) {
                         waitForCacheRebalancing(c, fut);
 
                         if (fut.isDone())
-                            return;
+                            return false;
                     }
 
                     requestPartitions(fut, assigns);
+
+                    return true;
                 }
             };
         }
@@ -343,7 +345,7 @@ public class GridDhtPartitionDemander {
     /**
      * @param fut Future.
      */
-    private void requestPartitions(RebalanceFuture fut, GridDhtPreloaderAssignments assigns) {
+    private void requestPartitions(RebalanceFuture fut, GridDhtPreloaderAssignments assigns) throws IgniteCheckedException {
         for (Map.Entry<ClusterNode, GridDhtPartitionDemandMessage> e : assigns.entrySet()) {
             if (topologyChanged(fut)) {
                 fut.cancel();
@@ -394,20 +396,13 @@ public class GridDhtPartitionDemander {
                         initD.topic(GridCachePartitionExchangeManager.rebalanceTopic(cnt));
                         initD.updateSequence(fut.updateSeq);
 
-                        try {
-                            cctx.io().sendOrderedMessage(node,
-                                GridCachePartitionExchangeManager.rebalanceTopic(cnt), initD, cctx.ioPolicy(), d.timeout());
+                        cctx.io().sendOrderedMessage(node,
+                            GridCachePartitionExchangeManager.rebalanceTopic(cnt), initD, cctx.ioPolicy(), d.timeout());
 
-                            if (log.isDebugEnabled())
-                                log.debug("Requested rebalancing [from node=" + node.id() + ", listener index=" +
-                                    cnt + ", partitions count=" + sParts.get(cnt).size() +
-                                    " (" + partitionsList(sParts.get(cnt)) + ")]");
-                        }
-                        catch (IgniteCheckedException ex) {
-                            fut.cancel();
-
-                            U.error(log, "Failed to send partition demand message to node", ex);
-                        }
+                        if (log.isDebugEnabled())
+                            log.debug("Requested rebalancing [from node=" + node.id() + ", listener index=" +
+                                cnt + ", partitions count=" + sParts.get(cnt).size() +
+                                " (" + partitionsList(sParts.get(cnt)) + ")]");
                     }
                 }
             }
@@ -1365,7 +1360,7 @@ public class GridDhtPartitionDemander {
          * @param node Node.
          * @param d D.
          */
-        public void run(ClusterNode node, GridDhtPartitionDemandMessage d) {
+        public void run(ClusterNode node, GridDhtPartitionDemandMessage d) throws IgniteCheckedException{
             demandLock.readLock().lock();
 
             try {
@@ -1399,14 +1394,10 @@ public class GridDhtPartitionDemander {
 
                     fut.cancel();
                 }
-                catch (IgniteCheckedException e) {
-                    U.error(log, "Failed to receive partitions from node (rebalancing will not " +
-                        "fully finish) [node=" + node.id() + ", msg=" + d + ']', e);
-
-                    fut.cancel(node.id());
-                }
                 catch (InterruptedException e) {
                     fut.cancel();
+
+                    throw new IgniteCheckedException(e);
                 }
             }
             finally {

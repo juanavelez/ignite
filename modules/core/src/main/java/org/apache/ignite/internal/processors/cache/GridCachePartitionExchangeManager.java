@@ -29,6 +29,7 @@ import java.util.Queue;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -141,7 +142,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
     private GridFutureAdapter<?> reconnectExchangeFut;
 
     /** */
-    private final Queue<Runnable> rebalancingQueue = new ConcurrentLinkedDeque8<>();
+    private final Queue<Callable<Boolean>> rebalancingQueue = new ConcurrentLinkedDeque8<>();
 
     /**
      * Partition map futures.
@@ -1295,7 +1296,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                             orderMap.get(order).add(cacheId);
                         }
 
-                        Runnable marsR = null;
+                        Callable<Boolean> marsR = null;
 
                         //Ordered rebalance scheduling.
                         for (Integer order : orderMap.keySet()) {
@@ -1310,7 +1311,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                     }
                                 }
 
-                                Runnable r = cacheCtx.preloader().addAssignments(
+                                Callable<Boolean> r = cacheCtx.preloader().addAssignments(
                                     assignsMap.get(cacheId), forcePreload, waitList, cnt);
 
                                 if (r != null) {
@@ -1333,7 +1334,14 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                 U.log(log, "Starting caches rebalancing [top=" + exchFut.topologyVersion() + "]");
 
                                 if (marsR != null)
-                                    marsR.run();//Marshaller cache rebalancing launches in sync way.
+                                    try {
+                                        marsR.call();//Marshaller cache rebalancing launches in sync way.
+                                    }
+                                    catch (Exception ex) {
+                                        U.error(log, "Failed to send partition demand message to node", ex);
+
+                                        continue;
+                                    }
 
                                 final GridFutureAdapter fut = new GridFutureAdapter();
 
@@ -1343,13 +1351,19 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                     @Override public Boolean call() {
                                         try {
                                             while (true) {
-                                                Runnable rn = rebalancingQueue.poll();
+                                                Callable<Boolean> r = rebalancingQueue.poll();
 
-                                                if (rn == null)
+                                                if (r == null)
                                                     return false;
 
-                                                rn.run();
+                                               if (!r.call())
+                                                   return false;
                                             }
+                                        }
+                                        catch (Exception ex) {
+                                            U.error(log, "Failed to send partition demand message to node", ex);
+
+                                            return false;
                                         }
                                         finally {
                                             fut.onDone();
