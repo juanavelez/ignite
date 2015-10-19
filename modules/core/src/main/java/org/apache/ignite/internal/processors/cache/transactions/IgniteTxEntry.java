@@ -843,6 +843,7 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
      * @param serReadVer Read version for serializable transaction.
      */
     public void serializableReadVersion(GridCacheVersion serReadVer) {
+        assert this.serReadVer == null;
         assert serReadVer != null;
 
         this.serReadVer = serReadVer;

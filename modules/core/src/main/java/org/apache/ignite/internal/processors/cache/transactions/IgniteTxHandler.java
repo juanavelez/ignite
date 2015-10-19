@@ -416,7 +416,7 @@ public class IgniteTxHandler {
 
             if (tx.isRollbackOnly()) {
                 try {
-                    if (tx.state() != TransactionState.ROLLED_BACK)
+                    if (tx.state() != TransactionState.ROLLED_BACK && tx.state() != TransactionState.ROLLING_BACK)
                         tx.rollback();
                 }
                 catch (IgniteCheckedException e) {

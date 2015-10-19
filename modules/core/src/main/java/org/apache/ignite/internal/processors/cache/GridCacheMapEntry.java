@@ -1058,7 +1058,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         long drExpireTime,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
+        String taskName,
+        @Nullable GridCacheVersion dhtVer
     ) throws IgniteCheckedException, GridCacheEntryRemovedException {
         CacheObject old;
 
@@ -1146,6 +1147,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
 
             update(val, expireTime, ttl, newVer);
 
+            if (isNear()) {
+                assert dhtVer != null;
+
+                ((GridNearCacheEntry)this).recordDhtVersion(dhtVer);
+            }
+
             drReplicate(drType, val, newVer);
 
             recordNodeId(affNodeId, topVer);
@@ -1212,8 +1219,9 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         GridDrType drType,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
-    ) throws IgniteCheckedException, GridCacheEntryRemovedException {
+        String taskName,
+        @Nullable GridCacheVersion dhtVer
+        ) throws IgniteCheckedException, GridCacheEntryRemovedException {
         assert cctx.transactional();
 
         CacheObject old;
@@ -1273,6 +1281,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             boolean hadValPtr = hasOffHeapPointer();
 
             update(null, 0, 0, newVer);
+
+            if (isNear()) {
+                assert dhtVer != null;
+
+                ((GridNearCacheEntry)this).recordDhtVersion(dhtVer);
+            }
 
             if (cctx.offheapTiered() && hadValPtr) {
                 boolean rmv = cctx.swap().removeOffheap(key);

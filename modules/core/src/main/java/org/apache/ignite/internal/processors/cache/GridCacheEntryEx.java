@@ -34,7 +34,6 @@ import org.apache.ignite.internal.processors.cache.version.GridCacheVersionedEnt
 import org.apache.ignite.internal.processors.dr.GridDrType;
 import org.apache.ignite.internal.util.lang.GridTuple3;
 import org.apache.ignite.internal.util.typedef.T2;
-import org.apache.ignite.lang.IgniteBiTuple;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -360,6 +359,7 @@ public interface GridCacheEntryEx {
      * @param explicitVer Explicit version (if any).
      * @param subjId Subject ID initiated this update.
      * @param taskName Task name.
+     * @param dhtVer Dht version for near cache entry.
      * @return Tuple containing success flag and old value. If success is {@code false},
      *      then value is {@code null}.
      * @throws IgniteCheckedException If storing value failed.
@@ -381,7 +381,8 @@ public interface GridCacheEntryEx {
         long drExpireTime,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
+        String taskName,
+        @Nullable GridCacheVersion dhtVer
     ) throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**
@@ -398,6 +399,7 @@ public interface GridCacheEntryEx {
      * @param explicitVer Explicit version (if any).
      * @param subjId Subject ID initiated this update.
      * @param taskName Task name.
+     * @param dhtVer Dht version for near cache entry.
      * @return Tuple containing success flag and old value. If success is {@code false},
      *      then value is {@code null}.
      * @throws IgniteCheckedException If remove failed.
@@ -416,7 +418,8 @@ public interface GridCacheEntryEx {
         GridDrType drType,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
+        String taskName,
+        @Nullable GridCacheVersion dhtVer
     ) throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**

@@ -58,7 +58,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheUpdateTxResult;
 import org.apache.ignite.internal.processors.cache.IgniteCacheExpiryPolicy;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.dht.colocated.GridDhtDetachedCacheEntry;
-import org.apache.ignite.internal.processors.cache.distributed.near.GridNearCacheEntry;
 import org.apache.ignite.internal.processors.cache.dr.GridCacheDrInfo;
 import org.apache.ignite.internal.processors.cache.store.CacheStoreManager;
 import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
@@ -911,13 +910,15 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                     IgniteBiTuple<GridCacheOperation, CacheObject> res = applyTransformClosures(txEntry,
                                         true);
 
+                                    GridCacheVersion dhtVer = null;
+
                                     // For near local transactions we must record DHT version
                                     // in order to keep near entries on backup nodes until
                                     // backup remote transaction completes.
                                     if (cacheCtx.isNear()) {
                                         if (txEntry.op() == CREATE || txEntry.op() == UPDATE ||
                                             txEntry.op() == DELETE || txEntry.op() == TRANSFORM)
-                                            ((GridNearCacheEntry)cached).recordDhtVersion(txEntry.dhtVersion());
+                                            dhtVer = txEntry.dhtVersion();
 
                                         if ((txEntry.op() == CREATE || txEntry.op() == UPDATE) &&
                                             txEntry.conflictExpireTime() == CU.EXPIRE_TIME_CALCULATE) {
@@ -1015,7 +1016,8 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             txEntry.conflictExpireTime(),
                                             cached.isNear() ? null : explicitVer,
                                             CU.subjectId(this, cctx),
-                                            resolveTaskName());
+                                            resolveTaskName(),
+                                            dhtVer);
 
                                         if (nearCached != null && updRes.success())
                                             nearCached.innerSet(
@@ -1034,7 +1036,8 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                                 txEntry.conflictExpireTime(),
                                                 null,
                                                 CU.subjectId(this, cctx),
-                                                resolveTaskName());
+                                                resolveTaskName(),
+                                                dhtVer);
                                     }
                                     else if (op == DELETE) {
                                         GridCacheUpdateTxResult updRes = cached.innerRemove(
@@ -1050,7 +1053,8 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             cached.detached()  ? DR_NONE : drType,
                                             cached.isNear() ? null : explicitVer,
                                             CU.subjectId(this, cctx),
-                                            resolveTaskName());
+                                            resolveTaskName(),
+                                            dhtVer);
 
                                         if (nearCached != null && updRes.success())
                                             nearCached.innerRemove(
@@ -1066,7 +1070,8 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                                 DR_NONE,
                                                 null,
                                                 CU.subjectId(this, cctx),
-                                                resolveTaskName());
+                                                resolveTaskName(),
+                                                dhtVer);
                                     }
                                     else if (op == RELOAD) {
                                         cached.innerReload();

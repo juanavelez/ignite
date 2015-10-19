@@ -1844,6 +1844,29 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                     }
 
                     checkValue(key, null, cache.getName());
+
+                    try {
+                        cache.put(key, 1);
+
+                        try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                            Object val = cache.get(key);
+
+                            assertEquals(1, val);
+
+                            boolean res = cache.remove(key);
+
+                            assertTrue(res);
+
+                            updateKey(cache, key, 2);
+
+                            tx.commit();
+                        }
+
+                        fail();
+                    }
+                    catch (TransactionOptimisticException e) {
+                        log.info("Expected exception: " + e);
+                    }
                 }
             }
             finally {
@@ -2789,6 +2812,230 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
             default:
                 assert false;
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testIncrementTx1() throws Exception {
+        incrementTx(false, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testIncrementTx2() throws Exception {
+        incrementTx(false, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testIncrementTxNearCache1() throws Exception {
+        incrementTx(true, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testIncrementTxNearCache2() throws Exception {
+        incrementTx(true, true);
+    }
+
+    /**
+     * @param nearCache If {@code true} near cache is enabled.
+     * @param store If {@code true} cache store is enabled.
+     * @throws Exception If failed.
+     */
+    private void incrementTx(boolean nearCache, boolean store) throws Exception {
+        final Ignite ignite0 = ignite(0);
+
+        CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, store, false);
+
+        final List<Ignite> clients = clients();
+
+        final String cacheName = ignite0.createCache(ccfg).getName();
+
+        try {
+            final List<IgniteCache<Integer, Integer>> caches = new ArrayList<>();
+
+            for (Ignite client : clients) {
+                if (nearCache)
+                    caches.add(client.createNearCache(cacheName, new NearCacheConfiguration<Integer, Integer>()));
+                else
+                    caches.add(client.<Integer, Integer>cache(cacheName));
+            }
+
+            for (int i = 0; i < 30; i++) {
+                final AtomicInteger cntr = new AtomicInteger();
+
+                final Integer key = i;
+
+                final AtomicInteger threadIdx = new AtomicInteger();
+
+                final int THREADS = 10;
+
+                final CyclicBarrier barrier = new CyclicBarrier(THREADS);
+
+                GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                    @Override public Void call() throws Exception {
+                        int idx = threadIdx.getAndIncrement() % caches.size();
+
+                        IgniteCache<Integer, Integer> cache = caches.get(idx);
+
+                        Ignite ignite = cache.unwrap(Ignite.class);
+
+                        IgniteTransactions txs = ignite.transactions();
+
+                        log.info("Started update thread: " + ignite.name());
+
+                        barrier.await();
+
+                        for (int i = 0; i < 1000; i++) {
+                            try {
+                                try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                                    Integer val = cache.get(key);
+
+                                    cache.put(key, val == null ? 1 : val + 1);
+
+                                    tx.commit();
+                                }
+
+                                cntr.incrementAndGet();
+                            }
+                            catch (TransactionOptimisticException ignore) {
+                                // Retry.
+                            }
+                        }
+
+                        return null;
+                    }
+                }, THREADS, "update-thread").get();
+
+                log.info("Iteration [iter=" + i + ", val=" + cntr.get() + ']');
+
+                assertTrue(cntr.get() > 0);
+
+                checkValue(key, cntr.get(), cacheName);
+            }
+        }
+        finally {
+            ignite0.destroyCache(cacheName);
+        }
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testGetRemoveTx() throws Exception {
+        getRemoveTx(false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testGetRemoveTxNearCache() throws Exception {
+        getRemoveTx(true);
+    }
+
+    /**
+     * @param nearCache If {@code true} near cache is enabled.
+     * @throws Exception If failed.
+     */
+    private void getRemoveTx(boolean nearCache) throws Exception {
+        final Ignite ignite0 = ignite(0);
+
+        CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 0, false, false);
+
+        final List<Ignite> clients = clients();
+
+        final String cacheName = ignite0.createCache(ccfg).getName();
+
+        try {
+            final List<IgniteCache<Integer, Integer>> caches = new ArrayList<>();
+
+            for (Ignite client : clients) {
+                if (nearCache)
+                    caches.add(client.createNearCache(cacheName, new NearCacheConfiguration<Integer, Integer>()));
+                else
+                    caches.add(client.<Integer, Integer>cache(cacheName));
+            }
+
+            for (int i = 0; i < 100; i++) {
+                final AtomicInteger cntr = new AtomicInteger();
+
+                final Integer key = i;
+
+                final AtomicInteger threadIdx = new AtomicInteger();
+
+                final int THREADS = 10;
+
+                final CyclicBarrier barrier = new CyclicBarrier(THREADS);
+
+                GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                    @Override public Void call() throws Exception {
+                        int idx = threadIdx.getAndIncrement() % caches.size();
+
+                        IgniteCache<Integer, Integer> cache = caches.get(idx);
+
+                        Ignite ignite = cache.unwrap(Ignite.class);
+
+                        IgniteTransactions txs = ignite.transactions();
+
+                        log.info("Started update thread: " + ignite.name());
+
+                        barrier.await();
+
+                        for (int i = 0; i < 100; i++) {
+                            try {
+                                ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+                                boolean rmv = rnd.nextInt(3) == 0;
+
+                                Integer val;
+
+                                try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                                    val = cache.get(key);
+
+                                    if (rmv)
+                                        cache.remove(key);
+                                    else
+                                        cache.put(key, val == null ? 1 : val + 1);
+
+                                    tx.commit();
+
+                                    if (rmv) {
+                                        if (val != null) {
+                                            for (int j = 0; j < val; j++)
+                                                cntr.decrementAndGet();
+                                        }
+                                    }
+                                    else
+                                        cntr.incrementAndGet();
+                                }
+                            }
+                            catch (TransactionOptimisticException ignore) {
+                                // Retry.
+                            }
+                        }
+
+                        return null;
+                    }
+                }, THREADS, "update-thread").get();
+
+                int val = cntr.get();
+
+                log.info("Iteration [iter=" + i + ", val=" + val + ']');
+
+                if (val == 0)
+                    checkValue(key, null, cacheName);
+                else
+                    checkValue(key, val, cacheName);
+            }
+        }
+        finally {
+            ignite0.destroyCache(cacheName);
         }
     }
 

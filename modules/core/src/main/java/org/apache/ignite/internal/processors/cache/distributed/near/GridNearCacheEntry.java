@@ -317,13 +317,11 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
     }
 
     /**
-     * This method should be called only when committing optimistic transactions.
-     *
      * @param dhtVer DHT version to record.
      */
-    public synchronized void recordDhtVersion(GridCacheVersion dhtVer) {
-        // Version manager must be updated separately, when adding DHT version
-        // to transaction entries.
+    public void recordDhtVersion(GridCacheVersion dhtVer) {
+        assert Thread.holdsLock(this);
+
         this.dhtVer = dhtVer;
     }
 
@@ -379,6 +377,9 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         try {
             synchronized (this) {
                 checkObsolete();
+
+                if (this.dhtVer != null && this.dhtVer.compareTo(dhtVer) >= 0)
+                    return false;
 
                 if (cctx.cache().configuration().isStatisticsEnabled())
                     cctx.cache().metrics0().onRead(false);
