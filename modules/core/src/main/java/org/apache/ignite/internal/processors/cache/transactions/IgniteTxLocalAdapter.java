@@ -105,6 +105,8 @@ import static org.apache.ignite.internal.processors.cache.GridCacheOperation.REA
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.RELOAD;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.TRANSFORM;
 import static org.apache.ignite.internal.processors.cache.GridCacheOperation.UPDATE;
+import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.SER_READ_EMPTY_ENTRY_VER;
+import static org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry.SER_READ_NOT_EMPTY_VER;
 import static org.apache.ignite.internal.processors.dr.GridDrType.DR_NONE;
 import static org.apache.ignite.internal.processors.dr.GridDrType.DR_PRIMARY;
 import static org.apache.ignite.transactions.TransactionState.COMMITTED;
@@ -429,7 +431,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
 
         if (!readThrough || !cacheCtx.readThrough()) {
             for (KeyCacheObject key : keys)
-                c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
+                c.apply(key, null, SER_READ_EMPTY_ENTRY_VER);
 
             return new GridFinishedFuture<>();
         }
@@ -525,14 +527,14 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                             }
                         }
                         else
-                            ver = IgniteTxEntry.READ_NEW_ENTRY_VER;
+                            ver = SER_READ_EMPTY_ENTRY_VER;
 
                         c.apply(key, val, ver);
                     }
                 });
 
                 for (KeyCacheObject key : misses0.keySet())
-                    c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
+                    c.apply(key, null, SER_READ_EMPTY_ENTRY_VER);
             }
 
             return new GridFinishedFuture<>();
@@ -2181,7 +2183,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                     if (needReadVer) {
                                         assert readVer != null;
 
-                                        txEntry.serializableReadVersion(readVer);
+                                        txEntry.serializableReadVersion(singleRmv ? SER_READ_NOT_EMPTY_VER : readVer);
                                     }
                                 }
 
@@ -2236,7 +2238,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                     if (needReadVer) {
                                         assert readVer != null;
 
-                                        txEntry.serializableReadVersion(readVer);
+                                        txEntry.serializableReadVersion(singleRmv ? SER_READ_NOT_EMPTY_VER : readVer);
                                     }
 
                                     if (retval && !transform)
@@ -2377,7 +2379,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                         if (needReadVer) {
                             assert loadVer != null;
 
-                            e.serializableReadVersion(loadVer);
+                            e.serializableReadVersion(singleRmv && val != null ? SER_READ_NOT_EMPTY_VER : loadVer);
                         }
 
                         if (singleRmv) {

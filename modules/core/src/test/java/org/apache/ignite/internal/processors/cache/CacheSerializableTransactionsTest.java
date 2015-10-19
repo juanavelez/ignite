@@ -1735,35 +1735,69 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                 List<Integer> keys = testKeys(cache);
 
-                for (Integer key : keys) {
+                for (final Integer key : keys) {
                     log.info("Test key: " + key);
 
                     if (!noVal)
                         cache.put(key, -1);
 
-                    try {
-                        try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
-                            boolean res = cache.remove(key);
+                    if (noVal) {
+                        try {
+                            try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                                boolean res = cache.remove(key);
 
-                            assertEquals(!noVal, res);
+                                assertFalse(res);
 
-                            updateKey(cache, key, 1);
+                                updateKey(cache, key, -1);
 
-                            tx.commit();
+                                tx.commit();
+                            }
+
+                            fail();
+                        }
+                        catch (TransactionOptimisticException e) {
+                            log.info("Expected exception: " + e);
                         }
 
-                        fail();
+                        checkValue(key, -1, cache.getName());
                     }
-                    catch (TransactionOptimisticException e) {
-                        log.info("Expected exception: " + e);
-                    }
+                    else {
+                        try {
+                            try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                                boolean res = cache.remove(key);
 
-                    checkValue(key, 1, cache.getName());
+                                assertTrue(res);
+
+                                txAsync(cache, PESSIMISTIC, REPEATABLE_READ,
+                                    new IgniteClosure<IgniteCache<Integer, Integer>, Void>() {
+                                        @Override public Void apply(IgniteCache<Integer, Integer> cache) {
+                                            cache.remove(key);
+
+                                            return null;
+                                        }
+                                    }
+                                );
+
+                                tx.commit();
+                            }
+
+                            fail();
+                        }
+                        catch (TransactionOptimisticException e) {
+                            log.info("Expected exception: " + e);
+                        }
+
+                        checkValue(key, null, cache.getName());
+
+                        cache.put(key, -1);
+                    }
 
                     try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
                         boolean res = cache.remove(key);
 
                         assertTrue(res);
+
+                        updateKey(cache, key, 2);
 
                         tx.commit();
                     }
@@ -1774,7 +1808,15 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                     try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
                         cache.removeAll(Collections.singleton(key));
 
-                        updateKey(cache, key, 1);
+                        txAsync(cache, PESSIMISTIC, REPEATABLE_READ,
+                            new IgniteClosure<IgniteCache<Integer, Integer>, Void>() {
+                                @Override public Void apply(IgniteCache<Integer, Integer> cache) {
+                                    cache.remove(key);
+
+                                    return null;
+                                }
+                            }
+                        );
 
                         tx.commit();
                     }
@@ -2970,7 +3012,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                 }
             }, THREADS, "tx-thread");
 
-            fut.get(30_000);
+            fut.get(60_000);
 
             if (nonSerFut != null)
                 nonSerFut.get();

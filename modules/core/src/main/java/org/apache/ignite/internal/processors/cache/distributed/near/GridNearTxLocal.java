@@ -445,7 +445,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
                 c.apply(key, v, ver);
             }
             else
-                c.apply(key, null, IgniteTxEntry.READ_NEW_ENTRY_VER);
+                c.apply(key, null, IgniteTxEntry.SER_READ_EMPTY_ENTRY_VER);
         }
     }
 
