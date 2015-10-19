@@ -525,6 +525,8 @@ public class GridNioServer<T> {
         assert ses instanceof GridSelectorNioSessionImpl;
         assert op == NioOperation.PAUSE_READ || op == NioOperation.RESUME_READ;
 
+        U.log(log, "Pausing reads");
+
         GridSelectorNioSessionImpl impl = (GridSelectorNioSessionImpl)ses;
 
         if (impl.closed())
