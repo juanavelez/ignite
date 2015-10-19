@@ -959,31 +959,29 @@ public class GridDhtPartitionDemander {
                     preloadEvent(EVT_CACHE_REBALANCE_STOPPED, exchFut.discoveryEvent());
 
                 if (log.isDebugEnabled())
-                    log.debug("Completed sync future.");
+                    log.debug("Completed rebalance future.");
 
-                if (cctx.affinity().affinityTopologyVersion().equals(topVer)) {
+                cctx.shared().exchange().scheduleResendPartitions();
 
-                    Collection<Integer> m = new HashSet<>();
+                Collection<Integer> m = new HashSet<>();
 
-                    for (Map.Entry<UUID, Collection<Integer>> e : missed.entrySet()) {
-                        if (e.getValue() != null && !e.getValue().isEmpty())
-                            m.addAll(e.getValue());
-                    }
-
-                    if (!m.isEmpty()) {
-                        U.log(log, ("Reassigning partitions that were missed: " + m));
-
-                        onDone(false); //Finished but has missed partitions and forced dummy exchange
-
-                        cctx.shared().exchange().forceDummyExchange(true, exchFut);
-
-                        return;
-                    }
-
-                    cctx.shared().exchange().scheduleResendPartitions();
+                for (Map.Entry<UUID, Collection<Integer>> e : missed.entrySet()) {
+                    if (e.getValue() != null && !e.getValue().isEmpty())
+                        m.addAll(e.getValue());
                 }
 
-                if (!cancelled && !cctx.preloader().syncFuture().isDone())
+                if (!m.isEmpty()) {
+                    U.log(log, ("Reassigning partitions that were missed: " + m));
+
+                    onDone(false); //Finished but has missed partitions, will force dummy exchange
+
+                    cctx.shared().exchange().forceDummyExchange(true, exchFut);
+
+                    return;
+                }
+
+                if (!cancelled && !cctx.preloader().syncFuture().isDone() &&
+                    cctx.affinity().affinityTopologyVersion().equals(topVer))
                     ((GridFutureAdapter)cctx.preloader().syncFuture()).onDone();
 
                 onDone(true);
