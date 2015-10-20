@@ -46,7 +46,7 @@ import static org.apache.ignite.events.EventType.EVT_CACHE_OBJECT_READ;
 @SuppressWarnings({"NonPrivateFieldAccessedInSynchronizedContext", "TooBroadScope"})
 public class GridNearCacheEntry extends GridDistributedCacheEntry {
     /** */
-    private static final int NEAR_SIZE_OVERHEAD = 36;
+    private static final int NEAR_SIZE_OVERHEAD = 36 + 16;
 
     /** Topology version at the moment when value was initialized from primary node. */
     private volatile long topVer = -1L;
@@ -57,6 +57,9 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
 
     /** Partition. */
     private int part;
+
+    /** */
+    private short evictReservations;
 
     /**
      * @param ctx Cache context.
@@ -316,13 +319,21 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         primaryNode(primaryNodeId, topVer);
     }
 
-    /**
+    /*
      * @param dhtVer DHT version to record.
+     * @return {@code False} if given version is lower then existing version.
      */
-    public void recordDhtVersion(GridCacheVersion dhtVer) {
+    public final boolean recordDhtVersion(GridCacheVersion dhtVer) {
+        assert dhtVer != null;
         assert Thread.holdsLock(this);
 
-        this.dhtVer = dhtVer;
+        if (this.dhtVer == null || this.dhtVer.compareTo(dhtVer) <= 0) {
+            this.dhtVer = dhtVer;
+
+            return true;
+        }
+
+        return false;
     }
 
     /** {@inheritDoc} */
@@ -342,12 +353,32 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
     }
 
     /**
+     * @param primaryNodeId Primary node ID.
+     * @param topVer Topology version.
+     * @param val Value.
+     * @param dhtVer DHT version received from remote node.
+     * @throws GridCacheEntryRemovedException If entry was removed.
+     */
+    synchronized public void loadedValue(UUID primaryNodeId,
+        AffinityTopologyVersion topVer,
+        CacheObject val,
+        GridCacheVersion dhtVer)
+        throws GridCacheEntryRemovedException {
+        checkObsolete();
+
+        if (recordDhtVersion(dhtVer)) {
+            primaryNode(primaryNodeId, topVer);
+
+            value(val);
+        }
+    }
+
+    /**
      * @param tx Transaction.
      * @param primaryNodeId Primary node ID.
      * @param val New value.
      * @param ver Version to use.
      * @param dhtVer DHT version received from remote node.
-     * @param expVer Optional version to match.
      * @param ttl Time to live.
      * @param expireTime Expiration time.
      * @param evt Event flag.
@@ -363,13 +394,14 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         CacheObject val,
         GridCacheVersion ver,
         GridCacheVersion dhtVer,
-        @Nullable GridCacheVersion expVer,
         long ttl,
         long expireTime,
         boolean evt,
         AffinityTopologyVersion topVer,
         UUID subjId)
         throws IgniteCheckedException, GridCacheEntryRemovedException {
+        assert dhtVer != null;
+
         boolean valid = valid(tx != null ? tx.topologyVersion() : cctx.affinity().affinityTopologyVersion());
 
         GridCacheVersion enqueueVer = null;
@@ -377,9 +409,6 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         try {
             synchronized (this) {
                 checkObsolete();
-
-                if (this.dhtVer != null && this.dhtVer.compareTo(dhtVer) >= 0)
-                    return false;
 
                 if (cctx.cache().configuration().isStatisticsEnabled())
                     cctx.cache().metrics0().onRead(false);
@@ -389,11 +418,11 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
                 CacheObject old = this.val;
                 boolean hasVal = hasValueUnlocked();
 
-                if (isNew() || !valid || expVer == null || expVer.equals(this.dhtVer)) {
+                if (isNew() || !valid) {
                     primaryNode(primaryNodeId, topVer);
 
                     // Change entry only if dht version has changed.
-                    if (!dhtVer.equals(dhtVersion())) {
+                    if (this.dhtVer == null || this.dhtVer.compareTo(dhtVer) < 0) {
                         update(val, expireTime, ttl, ver);
 
                         if (cctx.deferredDelete() && !isInternal()) {
@@ -407,7 +436,7 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
                             }
                         }
 
-                        recordDhtVersion(dhtVer);
+                        this.dhtVer = dhtVer;
 
                         ret = true;
                     }
@@ -644,6 +673,32 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
     @Override protected void onInvalidate() {
         topVer = -1L;
         dhtVer = null;
+    }
+
+    /**
+     * @throws GridCacheEntryRemovedException If entry was removed.
+     */
+    public synchronized void reserveEviction() throws GridCacheEntryRemovedException {
+        checkObsolete();
+
+        evictReservations++;
+    }
+
+    /**
+     *
+     */
+    public synchronized void releaseEviction() {
+        assert evictReservations > 0 : this;
+        assert !obsolete() : this;
+
+        evictReservations--;
+    }
+
+    /** {@inheritDoc} */
+    @Override protected boolean evictionDisabled() {
+        assert Thread.holdsLock(this);
+
+        return evictReservations > 0;
     }
 
     /**

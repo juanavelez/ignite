@@ -2929,24 +2929,32 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testGetRemoveTx() throws Exception {
-        getRemoveTx(false);
+        getRemoveTx(false, false);
     }
 
     /**
      * @throws Exception If failed.
      */
-    public void testGetRemoveTxNearCache() throws Exception {
-        getRemoveTx(true);
+    public void testGetRemoveTxNearCache1() throws Exception {
+        getRemoveTx(true, false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testGetRemoveTxNearCache2() throws Exception {
+        getRemoveTx(true, true);
     }
 
     /**
      * @param nearCache If {@code true} near cache is enabled.
+     * @param store If {@code true} cache store is enabled.
      * @throws Exception If failed.
      */
-    private void getRemoveTx(boolean nearCache) throws Exception {
+    private void getRemoveTx(boolean nearCache, boolean store) throws Exception {
         final Ignite ignite0 = ignite(0);
 
-        CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 0, false, false);
+        CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 0, store, false);
 
         final List<Ignite> clients = clients();
 
@@ -2973,9 +2981,11 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                 final CyclicBarrier barrier = new CyclicBarrier(THREADS);
 
-                GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
+                final IgniteInternalFuture<?> updateFut = GridTestUtils.runMultiThreadedAsync(new Callable<Void>() {
                     @Override public Void call() throws Exception {
-                        int idx = threadIdx.getAndIncrement() % caches.size();
+                        int thread = threadIdx.getAndIncrement();
+
+                        int idx = thread % caches.size();
 
                         IgniteCache<Integer, Integer> cache = caches.get(idx);
 
@@ -2985,53 +2995,58 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                         log.info("Started update thread: " + ignite.name());
 
+                        Thread.currentThread().setName("update-thread-" + ignite.name() + "-" + thread);
+
                         barrier.await();
 
-                        for (int i = 0; i < 100; i++) {
-                            try {
-                                ThreadLocalRandom rnd = ThreadLocalRandom.current();
+                        for (int i = 0; i < 50; i++) {
+                            while (true) {
+                                try {
+                                    ThreadLocalRandom rnd = ThreadLocalRandom.current();
 
-                                boolean rmv = rnd.nextInt(3) == 0;
+                                    boolean rmv = rnd.nextInt(3) == 0;
 
-                                Integer val;
+                                    Integer val;
 
-                                try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
-                                    val = cache.get(key);
+                                    try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+                                        val = cache.get(key);
 
-                                    if (rmv)
-                                        cache.remove(key);
-                                    else
-                                        cache.put(key, val == null ? 1 : val + 1);
+                                        if (rmv)
+                                            cache.remove(key);
+                                        else
+                                            cache.put(key, val == null ? 1 : val + 1);
 
-                                    tx.commit();
+                                        tx.commit();
 
-                                    if (rmv) {
-                                        if (val != null) {
-                                            for (int j = 0; j < val; j++)
-                                                cntr.decrementAndGet();
+                                        if (rmv) {
+                                            if (val != null) {
+                                                for (int j = 0; j < val; j++)
+                                                    cntr.decrementAndGet();
+                                            }
                                         }
+                                        else
+                                            cntr.incrementAndGet();
                                     }
-                                    else
-                                        cntr.incrementAndGet();
+
+                                    break;
                                 }
-                            }
-                            catch (TransactionOptimisticException ignore) {
-                                // Retry.
+                                catch (TransactionOptimisticException ignore) {
+                                    // Retry.
+                                }
                             }
                         }
 
                         return null;
                     }
-                }, THREADS, "update-thread").get();
+                }, THREADS, "update-thread");
 
-                int val = cntr.get();
+                updateFut.get();
+
+                Integer val = cntr.get();
 
                 log.info("Iteration [iter=" + i + ", val=" + val + ']');
 
-                if (val == 0)
-                    checkValue(key, null, cacheName);
-                else
-                    checkValue(key, val, cacheName);
+                checkValue(key, val == 0 ? null : val, cacheName);
             }
         }
         finally {

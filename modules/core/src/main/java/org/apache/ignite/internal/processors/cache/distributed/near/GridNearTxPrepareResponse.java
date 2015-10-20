@@ -197,6 +197,19 @@ public class GridNearTxPrepareResponse extends GridDistributedTxPrepareResponse 
      * Adds owned value.
      *
      * @param key Key.
+     * @param val Versioned value.
+     */
+    public void addOwnedValue(IgniteTxKey key, CacheVersionedValue val) {
+        if (ownedVals == null)
+            ownedVals = new HashMap<>();
+
+        ownedVals.put(key, val);
+    }
+
+    /**
+     * Adds owned value.
+     *
+     * @param key Key.
      * @param ver DHT version.
      * @param val Value.
      */

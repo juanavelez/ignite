@@ -1079,6 +1079,14 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         synchronized (this) {
             checkObsolete();
 
+            if (isNear()) {
+                assert dhtVer != null;
+
+                // It is possible that 'get' could load more recent value.
+                if (!((GridNearCacheEntry)this).recordDhtVersion(dhtVer))
+                    return new GridCacheUpdateTxResult(false, null);
+            }
+
             assert tx == null || (!tx.local() && tx.onePhaseCommit()) || tx.ownsLock(this) :
                 "Transaction does not own lock for update [entry=" + this + ", tx=" + tx + ']';
 
@@ -1146,12 +1154,6 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             }
 
             update(val, expireTime, ttl, newVer);
-
-            if (isNear()) {
-                assert dhtVer != null;
-
-                ((GridNearCacheEntry)this).recordDhtVersion(dhtVer);
-            }
 
             drReplicate(drType, val, newVer);
 
@@ -1245,6 +1247,14 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         synchronized (this) {
             checkObsolete();
 
+            if (isNear()) {
+                assert dhtVer != null;
+
+                // It is possible that 'get' could load more recent value.
+                if (!((GridNearCacheEntry)this).recordDhtVersion(dhtVer))
+                    return new GridCacheUpdateTxResult(false, null);
+            }
+
             assert tx == null || (!tx.local() && tx.onePhaseCommit()) || tx.ownsLock(this) :
                     "Transaction does not own lock for remove[entry=" + this + ", tx=" + tx + ']';
 
@@ -1281,12 +1291,6 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             boolean hadValPtr = hasOffHeapPointer();
 
             update(null, 0, 0, newVer);
-
-            if (isNear()) {
-                assert dhtVer != null;
-
-                ((GridNearCacheEntry)this).recordDhtVersion(dhtVer);
-            }
 
             if (cctx.offheapTiered() && hadValPtr) {
                 boolean rmv = cctx.swap().removeOffheap(key);
@@ -2606,6 +2610,13 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
     }
 
     /**
+     * @return {@code True} if this entry should not be evicted from cache.
+     */
+    protected boolean evictionDisabled() {
+        return false;
+    }
+
+    /**
      * <p>
      * Note that {@link #onMarkedObsolete()} should always be called after this method
      * returns {@code true}.
@@ -2616,6 +2627,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
      */
     protected final boolean markObsolete0(GridCacheVersion ver, boolean clear) {
         assert Thread.holdsLock(this);
+
+        if (evictionDisabled()) {
+            assert !obsolete() : this;
+
+            return false;
+        }
 
         GridCacheVersion obsoleteVer = obsoleteVersionExtras();
 
@@ -3758,6 +3775,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         try {
             if (F.isEmptyOrNulls(filter)) {
                 synchronized (this) {
+                    if (evictionDisabled()) {
+                        assert !obsolete();
+
+                        return false;
+                    }
+
                     if (obsoleteVersionExtras() != null)
                         return true;
 
@@ -3802,6 +3825,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         return false;
 
                     synchronized (this) {
+                        if (evictionDisabled()) {
+                            assert !obsolete();
+
+                            return false;
+                        }
+
                         if (obsoleteVersionExtras() != null)
                             return true;
 

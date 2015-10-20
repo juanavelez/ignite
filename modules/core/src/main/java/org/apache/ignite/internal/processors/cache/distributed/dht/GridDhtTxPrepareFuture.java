@@ -42,7 +42,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryEx;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryInfo;
 import org.apache.ignite.internal.processors.cache.GridCacheEntryRemovedException;
-import org.apache.ignite.internal.processors.cache.GridCacheFilterFailedException;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheOperation;
@@ -51,6 +50,7 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedCacheEntry;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxMapping;
+import org.apache.ignite.internal.processors.cache.distributed.near.CacheVersionedValue;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
@@ -689,6 +689,14 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
 
             tx.implicitSingleResult(ret);
         }
+        else if (prepErr instanceof IgniteTxOptimisticCheckedException) {
+            IgniteTxOptimisticCheckedException err = (IgniteTxOptimisticCheckedException)prepErr;
+
+            if (err.values() != null) {
+                for (Map.Entry<IgniteTxKey, CacheVersionedValue> e : err.values().entrySet())
+                    res.addOwnedValue(e.getKey(), e.getValue());
+            }
+        }
 
         res.filterFailedKeys(filterFailedKeys);
 
@@ -923,8 +931,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     /**
      * @param entries Entries.
      * @return Not null exception if version check failed.
+     * @throws IgniteCheckedException If failed.
      */
-    @Nullable private IgniteCheckedException checkReadConflict(Collection<IgniteTxEntry> entries) {
+    @Nullable private IgniteCheckedException checkReadConflict(Collection<IgniteTxEntry> entries)
+        throws IgniteCheckedException {
         try {
             for (IgniteTxEntry entry : entries) {
                 GridCacheVersion serReadVer = entry.serializableReadVersion();
@@ -932,20 +942,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
                 if (serReadVer != null) {
                     entry.cached().unswap();
 
-                    if (!entry.cached().checkSerializableReadVersion(serReadVer)) {
-                        GridCacheContext cctx = entry.context();
-
-                        return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
-                            "read/write conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
-                            ", cache=" + cctx.name() + ']');
-                    }
+                    if (!entry.cached().checkSerializableReadVersion(serReadVer))
+                        return versionCheckError(entry, null);
                 }
             }
-        }
-        catch (IgniteCheckedException e) {
-            U.error(log, "Failed to unswap entry: " + e, e);
-
-            return e;
         }
         catch (GridCacheEntryRemovedException e) {
             assert false : "Got removed exception on entry with dht local candidate: " + entries;
@@ -955,15 +955,89 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     }
 
     /**
+     * @param entries Entries.
+     * @param vals Values map.
+     * @return Value map.
+     * @throws IgniteCheckedException If failed.
+     */
+    @Nullable private Map<IgniteTxKey, CacheVersionedValue> checkReadConflict(Collection<IgniteTxEntry> entries,
+        @Nullable Map<IgniteTxKey, CacheVersionedValue> vals) throws IgniteCheckedException {
+        try {
+            for (IgniteTxEntry entry : entries) {
+                GridCacheVersion serReadVer = entry.serializableReadVersion();
+
+                if (serReadVer != null) {
+                    entry.cached().unswap();
+
+                    if (!entry.cached().checkSerializableReadVersion(serReadVer)) {
+                        if (vals == null)
+                            vals = U.newHashMap(3);
+
+                        GridCacheEntryInfo info = entry.cached().info();
+
+                        assert info != null : entry.cached();
+
+                        vals.put(entry.txKey(), new CacheVersionedValue(info.value(), info.version()));
+                    }
+                }
+            }
+        }
+        catch (GridCacheEntryRemovedException e) {
+            assert false : "Got removed exception on entry with dht local candidate: " + entries;
+        }
+
+        return vals;
+    }
+
+    /**
+     * @param entry Entry.
+     * @param vals Values.
+     * @return Optimistic version check error.
+     */
+    private IgniteTxOptimisticCheckedException versionCheckError(IgniteTxEntry entry,
+        Map<IgniteTxKey, CacheVersionedValue> vals) {
+        GridCacheContext cctx = entry.context();
+
+        return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
+            "read/write conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
+            ", cache=" + cctx.name() + ']', vals);
+    }
+
+    /**
      *
      */
     private void prepare0() {
         try {
             if (tx.optimistic() && tx.serializable()) {
-                IgniteCheckedException err0 = checkReadConflict(writes);
+                IgniteCheckedException err0 = null;
 
-                if (err0 == null)
-                    err0 = checkReadConflict(reads);
+                try {
+                    if (tx.nearOnOriginatingNode()) {
+                        Map<IgniteTxKey, CacheVersionedValue> vals;
+
+                        vals = checkReadConflict(writes, null);
+                        vals = checkReadConflict(reads, vals);
+
+                        if (vals != null) {
+                            IgniteTxEntry entry = tx.entry(F.firstKey(vals));
+
+                            assert entry != null;
+
+                            err0 = versionCheckError(entry, vals);
+                        }
+                    }
+                    else {
+                        err0 = checkReadConflict(writes);
+
+                        if (err0 == null)
+                            err0 = checkReadConflict(reads);
+                    }
+                }
+                catch (IgniteCheckedException e) {
+                    U.error(log, "Failed to check entry version: " + e, e);
+
+                    err0 = e;
+                }
 
                 if (err0 != null) {
                     err.compareAndSet(null, err0);
@@ -974,7 +1048,8 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
                         @Override public void apply(IgniteInternalFuture<IgniteInternalTx> fut) {
                             if (GridDhtTxPrepareFuture.super.onDone(res, res.error())) {
                                 try {
-                                    sendPrepareResponse(res);
+                                    if (replied.compareAndSet(false, true))
+                                        sendPrepareResponse(res);
                                 }
                                 catch (IgniteCheckedException e) {
                                     U.error(log, "Failed to send prepare response for transaction: " + tx, e);

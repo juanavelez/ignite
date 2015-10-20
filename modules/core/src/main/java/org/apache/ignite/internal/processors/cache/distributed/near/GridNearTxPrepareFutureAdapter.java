@@ -201,6 +201,7 @@ public abstract class GridNearTxPrepareFutureAdapter extends GridCompoundFuture<
                 }
                 catch (GridCacheEntryRemovedException ignored) {
                     // Retry.
+                    txEntry.cached(cacheCtx.cache().entryEx(txEntry.key()));
                 }
             }
         }

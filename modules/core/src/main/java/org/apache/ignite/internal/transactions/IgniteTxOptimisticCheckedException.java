@@ -17,7 +17,11 @@
 
 package org.apache.ignite.internal.transactions;
 
+import java.util.Map;
 import org.apache.ignite.IgniteCheckedException;
+import org.apache.ignite.internal.processors.cache.distributed.near.CacheVersionedValue;
+import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
+import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 
 /**
  * Exception thrown whenever grid transactions fail optimistically.
@@ -26,6 +30,10 @@ public class IgniteTxOptimisticCheckedException extends IgniteCheckedException {
     /** */
     private static final long serialVersionUID = 0L;
 
+    /** */
+    @GridToStringExclude
+    private transient Map<IgniteTxKey, CacheVersionedValue> vals;
+
     /**
      * Creates new optimistic exception with given error message.
      *
@@ -33,6 +41,25 @@ public class IgniteTxOptimisticCheckedException extends IgniteCheckedException {
      */
     public IgniteTxOptimisticCheckedException(String msg) {
         super(msg);
+    }
+
+    /**
+     * Creates new optimistic exception with given error message.
+     *
+     * @param msg Error message.
+     * @param vals Current values.
+     */
+    public IgniteTxOptimisticCheckedException(String msg, Map<IgniteTxKey, CacheVersionedValue> vals) {
+        super(msg);
+
+        this.vals = vals;
+    }
+
+    /**
+     * @return Current values.
+     */
+    public Map<IgniteTxKey, CacheVersionedValue> values() {
+        return vals;
     }
 
     /**

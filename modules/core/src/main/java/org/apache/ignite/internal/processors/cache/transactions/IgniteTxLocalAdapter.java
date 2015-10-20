@@ -1019,7 +1019,10 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             resolveTaskName(),
                                             dhtVer);
 
-                                        if (nearCached != null && updRes.success())
+                                        if (nearCached != null && updRes.success()) {
+                                            if (dhtVer == null)
+                                                dhtVer = explicitVer != null ? explicitVer : writeVersion();
+
                                             nearCached.innerSet(
                                                 null,
                                                 eventNodeId(),
@@ -1038,6 +1041,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                                 CU.subjectId(this, cctx),
                                                 resolveTaskName(),
                                                 dhtVer);
+                                        }
                                     }
                                     else if (op == DELETE) {
                                         GridCacheUpdateTxResult updRes = cached.innerRemove(
@@ -1056,7 +1060,10 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             resolveTaskName(),
                                             dhtVer);
 
-                                        if (nearCached != null && updRes.success())
+                                        if (nearCached != null && updRes.success()) {
+                                            if (dhtVer == null)
+                                                dhtVer = explicitVer != null ? explicitVer : writeVersion();
+
                                             nearCached.innerRemove(
                                                 null,
                                                 eventNodeId(),
@@ -1072,6 +1079,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                                 CU.subjectId(this, cctx),
                                                 resolveTaskName(),
                                                 dhtVer);
+                                        }
                                     }
                                     else if (op == RELOAD) {
                                         cached.innerReload();
