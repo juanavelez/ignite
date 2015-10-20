@@ -1559,6 +1559,8 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
      * @throws Exception If failed.
      */
     public void testAtomicClockPutAllMultinode() throws Exception {
+        fail("https://issues.apache.org/jira/browse/IGNITE-1685");
+
         multinode(CLOCK, TestType.PUT_ALL);
     }
 
