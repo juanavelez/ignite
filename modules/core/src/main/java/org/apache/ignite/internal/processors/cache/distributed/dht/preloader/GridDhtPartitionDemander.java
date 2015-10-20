@@ -980,8 +980,7 @@ public class GridDhtPartitionDemander {
                     return;
                 }
 
-                if (!cancelled && !cctx.preloader().syncFuture().isDone() &&
-                    cctx.affinity().affinityTopologyVersion().equals(topVer))
+                if (!cancelled && !cctx.preloader().syncFuture().isDone())
                     ((GridFutureAdapter)cctx.preloader().syncFuture()).onDone();
 
                 onDone(true);

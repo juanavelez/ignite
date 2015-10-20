@@ -1361,7 +1361,7 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                             }
                                         }
                                         catch (Exception ex) {
-                                            U.error(log, "Failed to send partition demand message to node", ex);
+                                            U.error(log, "Failed to send partition demand message to node");
 
                                             return false;
                                         }
