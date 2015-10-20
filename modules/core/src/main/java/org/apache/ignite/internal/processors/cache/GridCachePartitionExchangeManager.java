@@ -1338,7 +1338,8 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                         marsR.call();//Marshaller cache rebalancing launches in sync way.
                                     }
                                     catch (Exception ex) {
-                                        U.error(log, "Failed to send partition demand message to node", ex);
+                                        if (log.isDebugEnabled())
+                                            log.debug("Failed to send initial demand request to node");
 
                                         continue;
                                     }
@@ -1356,12 +1357,13 @@ public class GridCachePartitionExchangeManager<K, V> extends GridCacheSharedMana
                                                 if (r == null)
                                                     return false;
 
-                                               if (!r.call())
-                                                   return false;
+                                                if (!r.call())
+                                                    return false;
                                             }
                                         }
                                         catch (Exception ex) {
-                                            U.error(log, "Failed to send partition demand message to node");
+                                            if (log.isDebugEnabled())
+                                                log.debug("Failed to send initial demand request to node");
 
                                             return false;
                                         }

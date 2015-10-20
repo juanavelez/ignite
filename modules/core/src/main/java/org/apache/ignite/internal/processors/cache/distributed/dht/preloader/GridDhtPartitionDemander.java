@@ -337,20 +337,23 @@ public class GridDhtPartitionDemander {
 
             GridDhtPartitionDemandMessage d = e.getValue();
 
-            d.timeout(cctx.config().getRebalanceTimeout());
-            d.workerId(0);//old api support.
+            fut.appendPartitions(node.id(), d.partitions());//Future preparation.
+        }
+
+        for (Map.Entry<ClusterNode, GridDhtPartitionDemandMessage> e : assigns.entrySet()) {
+            final ClusterNode node = e.getKey();
 
             final CacheConfiguration cfg = cctx.config();
+
+            final Collection<Integer> parts = fut.remaining.get(node.id()).get2();
+
+            GridDhtPartitionDemandMessage d = e.getValue();
 
             //Check remote node rebalancing API version.
             if (new Integer(1).equals(node.attribute(IgniteNodeAttributes.REBALANCING_VERSION))) {
                 U.log(log, "Starting rebalancing [cache=" + cctx.name() + ", mode=" + cfg.getRebalanceMode() +
-                    ", fromNode=" + node.id() + ", partitionsCount=" + d.partitions().size() +
-                    ", topology=" + d.topologyVersion() + ", updateSeq=" + fut.updateSeq + "]");
-
-                Collection<Integer> parts = new HashSet<>(d.partitions());
-
-                fut.appendPartitions(node.id(), parts);
+                    ", fromNode=" + node.id() + ", partitionsCount=" + parts.size() +
+                    ", topology=" + fut.topologyVersion() + ", updateSeq=" + fut.updateSeq + "]");
 
                 int lsnrCnt = cctx.gridConfig().getRebalanceThreadPoolSize();
 
@@ -367,7 +370,6 @@ public class GridDhtPartitionDemander {
                     sParts.get(cnt++ % lsnrCnt).add(it.next());
 
                 for (cnt = 0; cnt < lsnrCnt; cnt++) {
-
                     if (!sParts.get(cnt).isEmpty()) {
 
                         // Create copy.
@@ -375,9 +377,10 @@ public class GridDhtPartitionDemander {
 
                         initD.topic(GridCachePartitionExchangeManager.rebalanceTopic(cnt));
                         initD.updateSequence(fut.updateSeq);
+                        initD.timeout(cctx.config().getRebalanceTimeout());
 
                         cctx.io().sendOrderedMessage(node,
-                            GridCachePartitionExchangeManager.rebalanceTopic(cnt), initD, cctx.ioPolicy(), d.timeout());
+                            GridCachePartitionExchangeManager.rebalanceTopic(cnt), initD, cctx.ioPolicy(), initD.timeout());
 
                         if (log.isDebugEnabled())
                             log.debug("Requested rebalancing [from node=" + node.id() + ", listener index=" +
@@ -388,12 +391,13 @@ public class GridDhtPartitionDemander {
             }
             else {
                 U.log(log, "Starting rebalancing (old api) [cache=" + cctx.name() + ", mode=" + cfg.getRebalanceMode() +
-                    ", fromNode=" + node.id() + ", partitionsCount=" + d.partitions().size() +
-                    ", topology=" + d.topologyVersion() + ", updateSeq=" + d.updateSequence() + "]");
+                    ", fromNode=" + node.id() + ", partitionsCount=" + parts.size() +
+                    ", topology=" + fut.topologyVersion() + ", updateSeq=" + fut.updateSeq + "]");
+
+                d.timeout(cctx.config().getRebalanceTimeout());
+                d.workerId(0);//old api support.
 
                 DemandWorker dw = new DemandWorker(dmIdx.incrementAndGet(), fut);
-
-                fut.appendPartitions(node.id(), d.partitions());
 
                 dw.run(node, d);
             }
