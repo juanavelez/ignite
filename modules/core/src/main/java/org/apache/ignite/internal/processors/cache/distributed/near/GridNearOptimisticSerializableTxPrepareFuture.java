@@ -178,7 +178,6 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                 Map<IgniteTxKey, CacheVersionedValue> ownVals = res.ownedValues();
 
                 if (ownVals != null) {
-
                     for (Map.Entry<IgniteTxKey, CacheVersionedValue> val : ownVals.entrySet()) {
                         IgniteTxEntry txEntry = tx.entry(val.getKey());
 
