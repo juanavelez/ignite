@@ -39,11 +39,11 @@ import org.apache.ignite.internal.processors.cache.GridCacheMvccCandidate;
 import org.apache.ignite.internal.processors.cache.GridCacheMvccFuture;
 import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxMapping;
-import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTopologyFuture;
 import org.apache.ignite.internal.processors.cache.distributed.dht.GridDhtTxMapping;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxKey;
+import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.transactions.IgniteTxOptimisticCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxRollbackCheckedException;
 import org.apache.ignite.internal.transactions.IgniteTxTimeoutCheckedException;
@@ -51,7 +51,6 @@ import org.apache.ignite.internal.util.GridConcurrentHashSet;
 import org.apache.ignite.internal.util.future.GridCompoundFuture;
 import org.apache.ignite.internal.util.future.GridFinishedFuture;
 import org.apache.ignite.internal.util.future.GridFutureAdapter;
-import org.apache.ignite.internal.util.lang.GridPlainRunnable;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.C1;
@@ -108,12 +107,29 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
         if (log.isDebugEnabled())
             log.debug("Transaction future received owner changed callback: " + entry);
 
-        if ((entry.context().isNear() || entry.context().isLocal())
-            && owner != null &&
-            tx.entry(entry.txKey()) != null) {
-            keyLockFut.onKeyLocked(entry.txKey());
+        if ((entry.context().isNear() || entry.context().isLocal()) && owner != null) {
+            IgniteTxEntry txEntry = tx.entry(entry.txKey());
 
-            return true;
+            if (txEntry != null) {
+                if (entry.context().isLocal()) {
+                    GridCacheVersion serReadVer = txEntry.serializableReadVersion();
+
+                    if (serReadVer != null && !entry.checkSerializableReadVersion(serReadVer)) {
+                        GridCacheContext ctx = entry.context();
+
+                        IgniteTxOptimisticCheckedException err0 =
+                            new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
+                            "read/write conflict [key=" + entry.key().value(ctx.cacheObjectContext(), false) +
+                            ", cache=" + ctx.name() + ']');
+
+                        err.compareAndSet(null, err0);
+                    }
+                }
+
+                keyLockFut.onKeyLocked(entry.txKey());
+
+                return true;
+            }
         }
 
         return false;
