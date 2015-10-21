@@ -268,16 +268,17 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
 
         Map<ClusterNode, LinkedHashMap<KeyCacheObject, Boolean>> mappings = U.newHashMap(affNodes.size());
 
-        Map<KeyCacheObject, GridNearCacheEntry> savedVers = null;
+        Map<KeyCacheObject, GridNearCacheEntry> savedEntries = null;
 
         // Assign keys to primary nodes.
         for (KeyCacheObject key : keys)
-            savedVers = map(key, mappings, topVer, mapped, savedVers);
+            savedEntries = map(key, mappings, topVer, mapped, savedEntries);
 
         if (isDone())
             return;
 
-        final Map<KeyCacheObject, GridNearCacheEntry> saved = savedVers;
+        final Map<KeyCacheObject, GridNearCacheEntry> saved = savedEntries != null ? savedEntries :
+            Collections.<KeyCacheObject, GridNearCacheEntry>emptyMap();
 
         final int keysSize = keys.size();
 
@@ -335,9 +336,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
 
                             return Collections.emptyMap();
                         }
-                        finally {
-                            releaseEvictions(mappedKeys.keySet(), saved, topVer);
-                        }
                     }
                 }));
             }
@@ -385,7 +383,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
      * @param key Key to map.
      * @param topVer Topology version
      * @param mapped Previously mapped.
-     * @param savedVers Saved versions.
+     * @param saved Reserved near cache entries.
      * @return Map.
      */
     private Map<KeyCacheObject, GridNearCacheEntry> map(
@@ -393,16 +391,16 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         Map<ClusterNode, LinkedHashMap<KeyCacheObject, Boolean>> mappings,
         AffinityTopologyVersion topVer,
         Map<ClusterNode, LinkedHashMap<KeyCacheObject, Boolean>> mapped,
-        Map<KeyCacheObject, GridNearCacheEntry> savedVers
+        Map<KeyCacheObject, GridNearCacheEntry> saved
     ) {
         final GridNearCacheAdapter near = cache();
 
         // Allow to get cached value from the local node.
         boolean allowLocRead = !forcePrimary || cctx.affinity().primary(cctx.localNode(), key, topVer);
 
-        GridCacheEntryEx entry = allowLocRead ? near.peekEx(key) : null;
-
         while (true) {
+            GridNearCacheEntry entry = allowLocRead ? (GridNearCacheEntry)near.peekEx(key) : null;
+
             try {
                 CacheObject v = null;
                 GridCacheVersion ver = null;
@@ -506,7 +504,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                                 onDone(new ClusterTopologyServerNotFoundException("Failed to map keys for cache " +
                                     "(all partition nodes left the grid)."));
 
-                                return savedVers;
+                                return saved;
                             }
 
                             if (!affNode.isLocal() && cctx.cache().configuration().isStatisticsEnabled() && !skipVals)
@@ -557,7 +555,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                             onDone(new ClusterTopologyServerNotFoundException("Failed to map keys for cache " +
                                 "(all partition nodes left the grid)."));
 
-                            return savedVers;
+                            return saved;
                         }
                     }
 
@@ -569,20 +567,22 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                                 MAX_REMAP_CNT + " attempts (key got remapped to the same node) " +
                                 "[key=" + key + ", node=" + U.toShortString(affNode) + ", mappings=" + mapped + ']'));
 
-                            return savedVers;
+                            return saved;
                         }
                     }
 
-                    GridNearCacheEntry nearEntry = near.entryExx(key, topVer);
+                    if (!cctx.affinity().localNode(key, topVer)) {
+                        GridNearCacheEntry nearEntry = entry != null ? entry : near.entryExx(key, topVer);
 
-                    nearEntry.reserveEviction();
+                        nearEntry.reserveEviction();
 
-                    entry = null;
+                        entry = null;
 
-                    if (savedVers == null)
-                        savedVers = U.newHashMap(3);
+                        if (saved == null)
+                            saved = U.newHashMap(3);
 
-                    savedVers.put(key, nearEntry);
+                        saved.put(key, nearEntry);
+                    }
 
                     // Don't add reader if transaction acquires lock anyway to avoid deadlock.
                     boolean addRdr = tx == null || tx.optimistic();
@@ -606,7 +606,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                 break;
             }
             catch (GridCacheEntryRemovedException ignored) {
-                entry = allowLocRead ? near.peekEx(key) : null;
+                // Retry.
             }
             finally {
                 if (entry != null && tx == null)
@@ -614,7 +614,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
             }
         }
 
-        return savedVers;
+        return saved;
     }
 
     /**
@@ -657,7 +657,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
      * @param nodeId Node id.
      * @param keys Keys.
      * @param infos Entry infos.
-     * @param savedVers Saved versions.
+     * @param savedEntries Saved entries.
      * @param topVer Topology version
      * @return Result map.
      */
@@ -665,7 +665,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         UUID nodeId,
         Collection<KeyCacheObject> keys,
         Collection<GridCacheEntryInfo> infos,
-        Map<KeyCacheObject, GridNearCacheEntry> savedVers,
+        Map<KeyCacheObject, GridNearCacheEntry> savedEntries,
         AffinityTopologyVersion topVer
     ) {
         boolean empty = F.isEmpty(keys);
@@ -683,9 +683,10 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
 
                     // Entries available locally in DHT should not be loaded into near cache for reading.
                     if (!cctx.affinity().localNode(info.key(), cctx.affinity().affinityTopologyVersion())) {
-                        GridNearCacheEntry entry = savedVers.get(info.key());
+                        GridNearCacheEntry entry = savedEntries.get(info.key());
 
-                        assert entry != null : info.key();
+                        if (entry == null)
+                            entry = cache().entryExx(info.key(), topVer);
 
                         // Load entry into cache.
                         entry.loadedValue(tx,
@@ -743,12 +744,12 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         for (KeyCacheObject key : keys) {
             GridNearCacheEntry entry = saved.get(key);
 
-            assert entry != null : key;
+            if (entry != null) {
+                entry.releaseEviction();
 
-            entry.releaseEviction();
-
-            if (tx == null)
-                cctx.evicts().touch(entry, topVer);
+                if (tx == null)
+                    cctx.evicts().touch(entry, topVer);
+            }
         }
     }
 
@@ -791,7 +792,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         private LinkedHashMap<KeyCacheObject, Boolean> keys;
 
         /** Saved entry versions. */
-        private Map<KeyCacheObject, GridNearCacheEntry> savedVers;
+        private Map<KeyCacheObject, GridNearCacheEntry> savedEntries;
 
         /** Topology version on which this future was mapped. */
         private AffinityTopologyVersion topVer;
@@ -802,18 +803,18 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         /**
          * @param node Node.
          * @param keys Keys.
-         * @param savedVers Saved entry versions.
+         * @param savedEntries Saved entries.
          * @param topVer Topology version.
          */
         MiniFuture(
             ClusterNode node,
             LinkedHashMap<KeyCacheObject, Boolean> keys,
-            Map<KeyCacheObject, GridNearCacheEntry> savedVers,
+            Map<KeyCacheObject, GridNearCacheEntry> savedEntries,
             AffinityTopologyVersion topVer
         ) {
             this.node = node;
             this.keys = keys;
-            this.savedVers = savedVers;
+            this.savedEntries = savedEntries;
             this.topVer = topVer;
         }
 
@@ -852,7 +853,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
         /** {@inheritDoc} */
         @Override public boolean onDone(@Nullable Map<K, V> res, @Nullable Throwable err) {
             if (super.onDone(res, err)) {
-                releaseEvictions(keys.keySet(), savedVers, topVer);
+                releaseEvictions(keys.keySet(), savedEntries, topVer);
 
                 return true;
             }
@@ -954,7 +955,7 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     }), F.t(node, keys), topVer);
 
                     // It is critical to call onDone after adding futures to compound list.
-                    onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedVers, topVer));
+                    onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedEntries, topVer));
 
                     return;
                 }
@@ -974,12 +975,12 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                         }), F.t(node, keys), new AffinityTopologyVersion(readyTopVer));
 
                         // It is critical to call onDone after adding futures to compound list.
-                        onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedVers, topVer));
+                        onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedEntries, topVer));
                     }
                 });
             }
             else
-                onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedVers, topVer));
+                onDone(loadEntries(node.id(), keys.keySet(), res.entries(), savedEntries, topVer));
         }
 
         /** {@inheritDoc} */

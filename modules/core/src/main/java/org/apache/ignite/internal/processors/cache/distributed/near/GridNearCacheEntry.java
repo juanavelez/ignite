@@ -402,8 +402,6 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
         throws IgniteCheckedException, GridCacheEntryRemovedException {
         assert dhtVer != null;
 
-        boolean valid = valid(tx != null ? tx.topologyVersion() : cctx.affinity().affinityTopologyVersion());
-
         GridCacheVersion enqueueVer = null;
 
         try {
@@ -418,28 +416,25 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
                 CacheObject old = this.val;
                 boolean hasVal = hasValueUnlocked();
 
-                if (isNew() || !valid) {
+                if (this.dhtVer == null || this.dhtVer.compareTo(dhtVer) < 0) {
                     primaryNode(primaryNodeId, topVer);
 
-                    // Change entry only if dht version has changed.
-                    if (this.dhtVer == null || this.dhtVer.compareTo(dhtVer) < 0) {
-                        update(val, expireTime, ttl, ver);
+                    update(val, expireTime, ttl, ver);
 
-                        if (cctx.deferredDelete() && !isInternal()) {
-                            boolean deleted = val == null;
+                    if (cctx.deferredDelete() && !isInternal()) {
+                        boolean deleted = val == null;
 
-                            if (deleted != deletedUnlocked()) {
-                                deletedUnlocked(deleted);
+                        if (deleted != deletedUnlocked()) {
+                            deletedUnlocked(deleted);
 
-                                if (deleted)
-                                    enqueueVer = ver;
-                            }
+                            if (deleted)
+                                enqueueVer = ver;
                         }
-
-                        this.dhtVer = dhtVer;
-
-                        ret = true;
                     }
+
+                    this.dhtVer = dhtVer;
+
+                    ret = true;
                 }
 
                 if (evt && cctx.events().isRecordable(EVT_CACHE_OBJECT_READ))

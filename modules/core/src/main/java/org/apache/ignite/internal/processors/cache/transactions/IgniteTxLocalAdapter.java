@@ -999,6 +999,9 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                         txEntry.conflictVersion(explicitVer);
                                     }
 
+                                    if (dhtVer == null)
+                                        dhtVer = explicitVer != null ? explicitVer : writeVersion();
+
                                     if (op == CREATE || op == UPDATE) {
                                         GridCacheUpdateTxResult updRes = cached.innerSet(
                                             this,
@@ -1020,9 +1023,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             dhtVer);
 
                                         if (nearCached != null && updRes.success()) {
-                                            if (dhtVer == null)
-                                                dhtVer = explicitVer != null ? explicitVer : writeVersion();
-
                                             nearCached.innerSet(
                                                 null,
                                                 eventNodeId(),
@@ -1061,9 +1061,6 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                             dhtVer);
 
                                         if (nearCached != null && updRes.success()) {
-                                            if (dhtVer == null)
-                                                dhtVer = explicitVer != null ? explicitVer : writeVersion();
-
                                             nearCached.innerRemove(
                                                 null,
                                                 eventNodeId(),

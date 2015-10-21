@@ -115,7 +115,7 @@ public class CacheNearReaderUpdateTest extends GridCommonAbstractTest {
 
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
-        return 5 * 60_000;
+        return 10 * 60_000;
     }
 
     /**

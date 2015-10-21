@@ -805,6 +805,9 @@ public class IgniteCacheClientNodeChangingTopologyTest extends GridCommonAbstrac
 
         TestCommunicationSpi spi = (TestCommunicationSpi)ignite3.configuration().getCommunicationSpi();
 
+        for (int i = 0; i < 100; i++)
+            primaryCache(i, null).put(i, -1);
+
         final Map<Integer, Integer> map = new HashMap<>();
 
         for (int i = 0; i < 100; i++)
