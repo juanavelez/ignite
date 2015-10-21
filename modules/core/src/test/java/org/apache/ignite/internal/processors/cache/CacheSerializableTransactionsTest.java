@@ -2822,6 +2822,13 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
     /**
      * @throws Exception If failed.
      */
+    public void testIncrementTxRestart() throws Exception {
+        incrementTx(false, false, true);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
     public void testIncrementTx1() throws Exception {
         incrementTx(false, false, false);
     }
@@ -2948,7 +2955,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                 assertTrue(cntr.get() > 0);
 
-                checkValue(key, cntr.get(), cacheName);
+                checkValue(key, cntr.get(), cacheName, restart);
             }
 
             stop.set(true);
@@ -3990,7 +3997,20 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
      * @param cacheName Cache name.
      */
     private void checkValue(Object key, Object expVal, String cacheName) {
+        checkValue(key, expVal, cacheName, false);
+    }
+
+    /**
+     * @param key Key.
+     * @param expVal Expected value.
+     * @param cacheName Cache name.
+     * @param skipFirst If {@code true} skips first node.
+     */
+    private void checkValue(Object key, Object expVal, String cacheName, boolean skipFirst) {
         for (int i = 0; i < SRVS + CLIENTS; i++) {
+            if (skipFirst && i == 0)
+                continue;
+
             IgniteCache<Object, Object> cache = ignite(i).cache(cacheName);
 
             assertEquals(expVal, cache.get(key));
