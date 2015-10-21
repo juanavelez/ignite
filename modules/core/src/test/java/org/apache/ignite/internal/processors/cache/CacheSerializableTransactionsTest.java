@@ -34,6 +34,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.cache.Cache;
+import javax.cache.CacheException;
 import javax.cache.configuration.Factory;
 import javax.cache.integration.CacheLoaderException;
 import javax.cache.processor.EntryProcessor;
@@ -41,6 +42,7 @@ import javax.cache.processor.EntryProcessorResult;
 import javax.cache.processor.MutableEntry;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.cache.CacheMode;
 import org.apache.ignite.cache.CacheWriteSynchronizationMode;
@@ -50,8 +52,10 @@ import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.configuration.NearCacheConfiguration;
 import org.apache.ignite.internal.IgniteInternalFuture;
+import org.apache.ignite.internal.cluster.ClusterTopologyCheckedException;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.G;
+import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteClosure;
@@ -2819,43 +2823,46 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testIncrementTx1() throws Exception {
-        incrementTx(false, false);
+        incrementTx(false, false, false);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testIncrementTx2() throws Exception {
-        incrementTx(false, true);
+        incrementTx(false, true, false);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testIncrementTxNearCache1() throws Exception {
-        incrementTx(true, false);
+        incrementTx(true, false, false);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testIncrementTxNearCache2() throws Exception {
-        incrementTx(true, true);
+        incrementTx(true, true, false);
     }
 
     /**
      * @param nearCache If {@code true} near cache is enabled.
      * @param store If {@code true} cache store is enabled.
+     * @param restart If {@code true} restarts one node.
      * @throws Exception If failed.
      */
-    private void incrementTx(boolean nearCache, boolean store) throws Exception {
-        final Ignite ignite0 = ignite(0);
+    private void incrementTx(boolean nearCache, boolean store, final boolean restart) throws Exception {
+        final Ignite srv = ignite(1);
 
         CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, store, false);
 
         final List<Ignite> clients = clients();
 
-        final String cacheName = ignite0.createCache(ccfg).getName();
+        final String cacheName = srv.createCache(ccfg).getName();
+
+        final AtomicBoolean stop = new AtomicBoolean();
 
         try {
             final List<IgniteCache<Integer, Integer>> caches = new ArrayList<>();
@@ -2865,6 +2872,26 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                     caches.add(client.createNearCache(cacheName, new NearCacheConfiguration<Integer, Integer>()));
                 else
                     caches.add(client.<Integer, Integer>cache(cacheName));
+            }
+
+            IgniteInternalFuture<?> restartFut = null;
+
+            if (restart) {
+                restartFut = GridTestUtils.runAsync(new Callable<Object>() {
+                    @Override public Object call() throws Exception {
+                        while (!stop.get()) {
+                            stopGrid(0);
+
+                            U.sleep(300);
+
+                            Ignite ignite = startGrid(0);
+
+                            assertFalse(ignite.configuration().isClientMode());
+                        }
+
+                        return null;
+                    }
+                });
             }
 
             for (int i = 0; i < 30; i++) {
@@ -2907,6 +2934,10 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                             catch (TransactionOptimisticException ignore) {
                                 // Retry.
                             }
+                            catch (IgniteException | CacheException e) {
+                                assertTrue("Unexpected exception [err=" + e + ", cause=" + e.getCause() + ']',
+                                    restart && X.hasCause(e, ClusterTopologyCheckedException.class));
+                            }
                         }
 
                         return null;
@@ -2919,9 +2950,16 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
                 checkValue(key, cntr.get(), cacheName);
             }
+
+            stop.set(true);
+
+            if (restartFut != null)
+                restartFut.get();
         }
         finally {
-            ignite0.destroyCache(cacheName);
+            stop.set(true);
+
+            destroyCache(srv, cacheName);
         }
     }
 
@@ -3058,55 +3096,57 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
      * @throws Exception If failed.
      */
     public void testAccountTx1() throws Exception {
-        accountTx(false, false, false, TestMemoryMode.HEAP);
+        accountTx(false, false, false, false, TestMemoryMode.HEAP);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testAccountTx2() throws Exception {
-        accountTx(true, false, false, TestMemoryMode.HEAP);
+        accountTx(true, false, false, false, TestMemoryMode.HEAP);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testAccountTxWithNonSerializable() throws Exception {
-        accountTx(false, false, true, TestMemoryMode.HEAP);
+        accountTx(false, false, true, false, TestMemoryMode.HEAP);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testAccountTxNearCache() throws Exception {
-        accountTx(false, true, false, TestMemoryMode.HEAP);
+        accountTx(false, true, false, false, TestMemoryMode.HEAP);
     }
 
     /**
      * @throws Exception If failed.
      */
     public void testAccountTxOffheapTiered() throws Exception {
-        accountTx(false, false, false, TestMemoryMode.OFFHEAP_TIERED);
+        accountTx(false, false, false, false, TestMemoryMode.OFFHEAP_TIERED);
     }
 
     /**
      * @param getAll If {@code true} uses getAll/putAll in transaction.
      * @param nearCache If {@code true} near cache is enabled.
      * @param nonSer If {@code true} starts threads executing non-serializable transactions.
+     * @param restart If {@code true} restarts one node.
      * @param memMode Test memory mode.
      * @throws Exception If failed.
      */
     private void accountTx(final boolean getAll,
         final boolean nearCache,
         final boolean nonSer,
+        final boolean restart,
         TestMemoryMode memMode) throws Exception {
-        final Ignite ignite0 = ignite(0);
+        final Ignite srv = ignite(1);
 
         CacheConfiguration<Integer, Integer> ccfg = cacheConfiguration(PARTITIONED, FULL_SYNC, 1, false, false);
 
         GridTestUtils.setMemoryMode(null, ccfg, memMode, 1, 64);
 
-        final String cacheName = ignite0.createCache(ccfg).getName();
+        final String cacheName = srv.createCache(ccfg).getName();
 
         try {
             final List<Ignite> clients = clients();
@@ -3114,7 +3154,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
             final int ACCOUNTS = 100;
             final int VAL_PER_ACCOUNT = 10_000;
 
-            IgniteCache<Integer, Account> srvCache = ignite0.cache(cacheName);
+            IgniteCache<Integer, Account> srvCache = srv.cache(cacheName);
 
             for (int i = 0; i < ACCOUNTS; i++)
                 srvCache.put(i, new Account(VAL_PER_ACCOUNT));
@@ -3123,7 +3163,9 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
 
             final int THREADS = 20;
 
-            final long stopTime = System.currentTimeMillis() + 10_000;
+            final long testTime = 30_000;
+
+            final long stopTime = System.currentTimeMillis() + testTime;
 
             IgniteInternalFuture<?> nonSerFut = null;
 
@@ -3186,7 +3228,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                 }, 10, "non-ser-thread");
             }
 
-            IgniteInternalFuture<?> fut = runMultiThreadedAsync(new Callable<Void>() {
+            final IgniteInternalFuture<?> fut = runMultiThreadedAsync(new Callable<Void>() {
                 @Override public Void call() throws Exception {
                     int nodeIdx = idx.getAndIncrement() % clients.size();
 
@@ -3261,6 +3303,10 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                                 catch (TransactionOptimisticException ignore) {
                                     // Retry.
                                 }
+                                catch (IgniteException | CacheException e) {
+                                    assertTrue("Unexpected exception [err=" + e + ", cause=" + e.getCause() + ']',
+                                        restart && X.hasCause(e, ClusterTopologyCheckedException.class));
+                                }
                             }
                         }
                         catch (Throwable e) {
@@ -3274,10 +3320,33 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
                 }
             }, THREADS, "tx-thread");
 
-            fut.get(60_000);
+            IgniteInternalFuture<?> restartFut = null;
+
+            if (restart) {
+                restartFut = GridTestUtils.runAsync(new Callable<Object>() {
+                    @Override public Object call() throws Exception {
+                        while (!fut.isDone()) {
+                            stopGrid(0);
+
+                            U.sleep(300);
+
+                            Ignite ignite = startGrid(0);
+
+                            assertFalse(ignite.configuration().isClientMode());
+                        }
+
+                        return null;
+                    }
+                });
+            }
+
+            fut.get(testTime + 30_000);
 
             if (nonSerFut != null)
                 nonSerFut.get();
+
+            if (restartFut != null)
+                restartFut.get();
 
             int sum = 0;
 
@@ -3336,7 +3405,7 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
             }
         }
         finally {
-            ignite0.destroyCache(cacheName);
+            srv.destroyCache(cacheName);
         }
     }
 
