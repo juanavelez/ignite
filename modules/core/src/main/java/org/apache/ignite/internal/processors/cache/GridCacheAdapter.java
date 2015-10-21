@@ -1597,13 +1597,13 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
         if (tx == null || tx.implicit()) {
             try {
-                assert keys != null;
-
                 final AffinityTopologyVersion topVer = tx == null
                     ? (canRemap ? ctx.affinity().affinityTopologyVersion(): ctx.shared().exchange().readyAffinityVersion())
                     : tx.topologyVersion();
 
                 final Map<K1, V1> map = new GridLeanMap<>(keys.size());
+
+                final boolean storeEnabled = !skipVals && readThrough && ctx.readThrough();
 
                 Map<KeyCacheObject, GridCacheVersion> misses = null;
 
@@ -1623,12 +1623,16 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                 expiry);
 
                             if (res == null) {
-                                GridCacheVersion ver = entry.version();
+                                if (storeEnabled) {
+                                    GridCacheVersion ver = entry.version();
 
-                                if (misses == null)
-                                    misses = new GridLeanMap<>();
+                                    if (entry.startVersion() == ver.order()) {
+                                        if (misses == null)
+                                            misses = new GridLeanMap<>();
 
-                                misses.put(key, ver);
+                                        misses.put(key, ver);
+                                    }
+                                }
                             }
                             else {
                                 if (needVer) {
@@ -1663,7 +1667,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                     }
                 }
 
-                if (!skipVals && misses != null && readThrough && ctx.readThrough()) {
+                if (storeEnabled && misses != null) {
                     final Map<KeyCacheObject, GridCacheVersion> loadKeys = misses;
 
                     final IgniteTxLocalAdapter tx0 = tx;

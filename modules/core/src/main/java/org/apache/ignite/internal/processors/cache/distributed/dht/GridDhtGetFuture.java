@@ -303,10 +303,7 @@ public final class GridDhtGetFuture<K, V> extends GridCompoundIdentityFuture<Col
                     GridDhtCacheEntry e = cache().entryExx(k.getKey(), topVer);
 
                     try {
-                        GridCacheEntryInfo info = e.info();
-
-                        // If entry is obsolete.
-                        if (info == null)
+                        if (e.obsolete())
                             continue;
 
                         boolean addReader = (!e.deleted() && k.getValue() && !skipVals);

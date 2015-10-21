@@ -3211,13 +3211,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         GridCacheVersion curVer,
         GridCacheVersion newVer)
         throws IgniteCheckedException, GridCacheEntryRemovedException {
+        assert newVer != null;
+
         checkObsolete();
 
         if (curVer == null || curVer.equals(ver)) {
             if (val != this.val) {
-                if (newVer == null)
-                    newVer = nextVersion();
-
                 CacheObject old = rawGetOrUnmarshalUnlocked(false);
 
                 long ttl = ttlExtras();
