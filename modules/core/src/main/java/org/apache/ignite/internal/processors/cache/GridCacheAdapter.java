@@ -1626,12 +1626,10 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                 if (storeEnabled) {
                                     GridCacheVersion ver = entry.version();
 
-                                    if (entry.startVersion() == ver.order()) {
-                                        if (misses == null)
-                                            misses = new GridLeanMap<>();
+                                    if (misses == null)
+                                        misses = new GridLeanMap<>();
 
-                                        misses.put(key, ver);
-                                    }
+                                    misses.put(key, ver);
                                 }
                             }
                             else {

@@ -3216,6 +3216,11 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         checkObsolete();
 
         if (curVer == null || curVer.equals(ver)) {
+            GridCacheMvcc mvcc = mvccExtras();
+
+            if (mvcc != null && !mvcc.isEmpty())
+                return false;
+
             if (val != this.val) {
                 CacheObject old = rawGetOrUnmarshalUnlocked(false);
 
