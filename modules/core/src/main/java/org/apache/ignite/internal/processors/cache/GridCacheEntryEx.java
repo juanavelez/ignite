@@ -355,7 +355,8 @@ public interface GridCacheEntryEx {
         long drExpireTime,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
+        String taskName,
+        @Nullable Long updateIdx
     ) throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**
@@ -390,7 +391,8 @@ public interface GridCacheEntryEx {
         GridDrType drType,
         @Nullable GridCacheVersion explicitVer,
         @Nullable UUID subjId,
-        String taskName
+        String taskName,
+        @Nullable Long updatePartIdx
     ) throws IgniteCheckedException, GridCacheEntryRemovedException;
 
     /**

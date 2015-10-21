@@ -457,7 +457,8 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
         boolean metrics,
         AffinityTopologyVersion topVer,
         CacheEntryPredicate[] filter, GridDrType drType,
-        long drExpireTime, @Nullable GridCacheVersion drVer, UUID subjId, String taskName) throws IgniteCheckedException,
+        long drExpireTime, @Nullable GridCacheVersion drVer, UUID subjId, String taskName, @Nullable Long updateIdx)
+        throws IgniteCheckedException,
         GridCacheEntryRemovedException {
         return new GridCacheUpdateTxResult(true, rawPut(val, ttl));
     }
@@ -530,7 +531,8 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
         GridDrType drType,
         @Nullable GridCacheVersion drVer,
         UUID subjId,
-        String taskName
+        String taskName,
+        Long updatePartIdx
     ) throws IgniteCheckedException, GridCacheEntryRemovedException {
         obsoleteVer = ver;
 
