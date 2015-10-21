@@ -85,6 +85,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
     private KeyLockFuture keyLockFut = new KeyLockFuture();
 
     /** */
+    @GridToStringExclude
     private final AtomicReference<ClientRemapFuture> remapFutRef;
 
     /**
@@ -534,7 +535,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
      * @param topVer Topology version.
      * @param curMapping Current mapping.
      * @param remap Remap flag.
-     * @param topLocked Toplogy locked flag.
+     * @param topLocked Topology locked flag.
      */
     private void map(
         IgniteTxEntry entry,
