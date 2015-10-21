@@ -708,7 +708,7 @@ public class GridDhtPartitionDemander {
         /** */
         private final IgniteLogger log;
 
-        /** Remaining. T3: startTime, partitions, updateSequence */
+        /** Remaining. T2: startTime, partitions */
         private final Map<UUID, T2<Long, Collection<Integer>>> remaining = new HashMap<>();
 
         /** Missed. */
