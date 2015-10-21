@@ -1631,6 +1631,8 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
 
                                     misses.put(key, ver);
                                 }
+                                else
+                                    ctx.evicts().touch(entry, topVer);
                             }
                             else {
                                 if (needVer) {
