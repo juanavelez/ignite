@@ -528,8 +528,6 @@ public class GridCacheMvccCandidate implements Externalizable,
         return prev;
     }
 
-    public Exception added = new Exception();
-
     /**
      * @param prev Lock that comes before in the same thread.
      */
