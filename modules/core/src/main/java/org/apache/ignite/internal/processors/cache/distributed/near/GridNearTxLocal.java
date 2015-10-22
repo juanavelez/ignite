@@ -406,7 +406,8 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
                     }
                 }
             });
-        } else {
+        }
+        else {
             assert cacheCtx.isLocal();
 
             return super.loadMissing(cacheCtx, readThrough, async, keys, skipVals, needVer, c);

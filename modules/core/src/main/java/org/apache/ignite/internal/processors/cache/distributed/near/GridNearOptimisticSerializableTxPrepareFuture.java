@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.cluster.ClusterNode;
 import org.apache.ignite.cluster.ClusterTopologyException;
@@ -86,7 +85,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
 
     /** */
     @GridToStringExclude
-    private final AtomicReference<ClientRemapFuture> remapFutRef;
+    private ClientRemapFuture remapFut;
 
     /**
      * @param cctx Context.
@@ -99,8 +98,6 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
 
         // Should wait for all mini futures completion before finishing tx.
         ignoreChildFailures(IgniteCheckedException.class);
-
-        remapFutRef = cctx.kernalContext().clientNode() ? new AtomicReference<ClientRemapFuture>() : null;
     }
 
     /** {@inheritDoc} */
@@ -800,20 +797,28 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
 
                         tx.removeMapping(m.node().id());
 
-                        ClientRemapFuture remapFut = new ClientRemapFuture();
+                        ClientRemapFuture remapFut0 = null;
 
-                        if (remapFutRef.compareAndSet(null, remapFut)) {
+                        synchronized (GridNearOptimisticSerializableTxPrepareFuture.this) {
+                            if (remapFut == null) {
+                                remapFut = new ClientRemapFuture();
+
+                                remapFut0 = remapFut;
+                            }
+                        }
+
+                        if (remapFut0 != null) {
                             Collection<IgniteInternalFuture<?>> futs = (Collection)futures();
 
                             for (IgniteInternalFuture<?> fut : futs) {
                                 if (isMini(fut) && fut != this)
-                                    remapFut.add((MiniFuture)fut);
+                                    remapFut0.add((MiniFuture)fut);
                             }
 
-                            remapFut.markInitialized();
+                            remapFut0.markInitialized();
 
-                            remapFut.listen(new CI1<IgniteInternalFuture<Boolean>>() {
-                                @Override public void apply(IgniteInternalFuture<Boolean> remapFut) {
+                            remapFut0.listen(new CI1<IgniteInternalFuture<Boolean>>() {
+                                @Override public void apply(IgniteInternalFuture<Boolean> remapFut0) {
                                     try {
                                         IgniteInternalFuture<?> affFut =
                                             cctx.exchange().affinityReadyFuture(res.clientRemapVersion());
@@ -828,9 +833,11 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                                                     ", topVer=" + res.topologyVersion() + ']');
                                             }
 
-                                            boolean set = remapFutRef.compareAndSet((ClientRemapFuture)remapFut, null);
+                                            synchronized (GridNearOptimisticSerializableTxPrepareFuture.this) {
+                                                assert remapFut0 == remapFut;
 
-                                            assert set;
+                                                remapFut = null;
+                                            }
 
                                             affFut.listen(new CI1<IgniteInternalFuture<?>>() {
                                                 @Override public void apply(IgniteInternalFuture<?> affFut) {

@@ -1482,6 +1482,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
      * @param taskName Task name.
      * @param deserializePortable Deserialize portable.
      * @param skipVals Skip values.
+     * @param canRemap Can remap flag.
      * @return Future for the get operation.
      * @see GridCacheAdapter#getAllAsync(Collection)
      */
@@ -1521,6 +1522,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
      * @param forcePrimary Froce primary.
      * @param expiry Expiry policy.
      * @param skipVals Skip values.
+     * @param canRemap Can remap flag.
      * @return Future for the get operation.
      * @see GridCacheAdapter#getAllAsync(Collection)
      */

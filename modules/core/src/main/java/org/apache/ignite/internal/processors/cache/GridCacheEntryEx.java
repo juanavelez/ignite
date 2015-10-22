@@ -438,6 +438,7 @@ public interface GridCacheEntryEx {
      * @param primary If update is performed on primary node (the one which assigns version).
      * @param checkVer Whether update should check current version and ignore update if current version is
      *      greater than passed in.
+     * @param topVer Topology version.
      * @param filter Optional filter to check.
      * @param drType DR type.
      * @param conflictTtl Conflict TTL (if any).

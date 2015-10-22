@@ -531,6 +531,7 @@ public final class GridCacheMvcc {
      * @param threadId Thread ID.
      * @param ver Lock version.
      * @param timeout Lock acquisition timeout.
+     * @param serOrder Version for serializable transactions ordering.
      * @param reenter Reentry flag ({@code true} if reentry is allowed).
      * @param tx Transaction flag.
      * @param implicitSingle Implicit flag.

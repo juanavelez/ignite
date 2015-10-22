@@ -2014,6 +2014,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
      * @param drPutMap DR put map (optional).
      * @param drRmvMap DR remove map (optional).
      * @param skipStore Skip store flag.
+     * @param singleRmv {@code True} for single key remove operation ({@link Cache#remove(Object)}.
      * @return Future with skipped keys (the ones that didn't pass filter for pessimistic transactions).
      */
     private <K, V> IgniteInternalFuture<Set<KeyCacheObject>> enlistWrite(
