@@ -1680,9 +1680,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                         ctx.closures().callLocalSafe(ctx.projectSafe(new GPC<Map<K1, V1>>() {
                             @Override public Map<K1, V1> call() throws Exception {
                                 ctx.store().loadAll(null/*tx*/, loadKeys.keySet(), new CI2<KeyCacheObject, Object>() {
-                                    /** New version for all new entries. */
-                                    private GridCacheVersion nextVer;
-
                                     @Override public void apply(KeyCacheObject key, Object val) {
                                         GridCacheVersion ver = loadKeys.get(key);
 
@@ -1694,10 +1691,6 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                             return;
                                         }
 
-                                        // Initialize next version.
-                                        if (nextVer == null)
-                                            nextVer = ctx.versions().next();
-
                                         loaded.add(key);
 
                                         CacheObject cacheVal = ctx.toCacheObject(val);
@@ -1706,11 +1699,15 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                             GridCacheEntryEx entry = entryEx(key);
 
                                             try {
-                                                boolean set = entry.versionedValue(cacheVal, ver, nextVer);
+                                                GridCacheVersion verSet = entry.versionedValue(cacheVal, ver, null);
+
+                                                boolean set = verSet != null;
 
                                                 if (log.isDebugEnabled())
-                                                    log.debug("Set value loaded from store into entry [set=" + set +
-                                                        ", curVer=" + ver + ", newVer=" + nextVer + ", " +
+                                                    log.debug("Set value loaded from store into entry [" +
+                                                        "set=" + set +
+                                                        ", curVer=" + ver +
+                                                        ", newVer=" + verSet + ", " +
                                                         "entry=" + entry + ']');
 
                                                 // Don't put key-value pair into result map if value is null.
@@ -1718,7 +1715,7 @@ public abstract class GridCacheAdapter<K, V> implements IgniteInternalCache<K, V
                                                     if (needVer) {
                                                         assert keepCacheObjects;
 
-                                                        map.put((K1)key, (V1)new T2<>(cacheVal, set ? nextVer : ver));
+                                                        map.put((K1)key, (V1)new T2<>(cacheVal, set ? verSet : ver));
                                                     }
                                                     else {
                                                         ctx.addResult(map,

@@ -42,6 +42,7 @@ import javax.cache.processor.EntryProcessorResult;
 import javax.cache.processor.MutableEntry;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCache;
+import org.apache.ignite.IgniteDataStreamer;
 import org.apache.ignite.IgniteException;
 import org.apache.ignite.IgniteTransactions;
 import org.apache.ignite.cache.CacheMode;
@@ -144,6 +145,97 @@ public class CacheSerializableTransactionsTest extends GridCommonAbstractTest {
     /** {@inheritDoc} */
     @Override protected long getTestTimeout() {
         return 5 * 60_000;
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxStreamerLoad() throws Exception {
+        txStreamerLoad(false);
+    }
+
+    /**
+     * @throws Exception If failed.
+     */
+    public void testTxStreamerLoadAllowOverwrite() throws Exception {
+        txStreamerLoad(true);
+    }
+
+    /**
+     * @param allowOverwrite Streamer flag.
+     * @throws Exception If failed.
+     */
+    private void txStreamerLoad(boolean allowOverwrite) throws Exception {
+        Ignite ignite0 = ignite(0);
+
+        for (CacheConfiguration<Integer, Integer> ccfg : cacheConfigurations()) {
+            if (ccfg.getCacheStoreFactory() == null)
+                continue;
+
+            logCacheInfo(ccfg);
+
+            try {
+                IgniteCache<Integer, Integer> cache = ignite0.createCache(ccfg);
+
+                List<Integer> keys = testKeys(cache);
+
+                for (Integer key : keys)
+                    txStreamerLoad(ignite0, key, cache.getName(), allowOverwrite);
+
+                txStreamerLoad(ignite(SRVS), 10_000, cache.getName(), allowOverwrite);
+            }
+            finally {
+                destroyCache(ignite0, ccfg.getName());
+            }
+        }
+    }
+
+    /**
+     * @param ignite Node.
+     * @param key Key.
+     * @param cacheName Cache name.
+     * @param allowOverwrite Streamer flag.
+     * @throws Exception If failed.
+     */
+    private void txStreamerLoad(Ignite ignite,
+        Integer key,
+        String cacheName,
+        boolean allowOverwrite) throws Exception {
+        IgniteCache<Integer, Integer> cache = ignite.cache(cacheName);
+
+        log.info("Test key: " + key);
+
+        Integer loadVal = -1;
+
+        IgniteTransactions txs = ignite.transactions();
+
+        try (IgniteDataStreamer<Integer, Integer> streamer = ignite.dataStreamer(cache.getName())) {
+            streamer.allowOverwrite(allowOverwrite);
+
+            streamer.addData(key, loadVal);
+        }
+
+        try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+            Integer val = cache.get(key);
+
+            assertEquals(loadVal, val);
+
+            tx.commit();
+        }
+
+        checkValue(key, loadVal, cache.getName());
+
+        try (Transaction tx = txs.txStart(OPTIMISTIC, SERIALIZABLE)) {
+            Integer val = cache.get(key);
+
+            assertEquals(loadVal, val);
+
+            cache.put(key, 0);
+
+            tx.commit();
+        }
+
+        checkValue(key, 0, cache.getName());
     }
 
     /**

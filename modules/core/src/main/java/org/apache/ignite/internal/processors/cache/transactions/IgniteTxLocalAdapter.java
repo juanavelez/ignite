@@ -486,31 +486,28 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                 final Map<KeyCacheObject, GridCacheVersion> misses0 = misses;
 
                 cacheCtx.store().loadAll(this, misses.keySet(), new CI2<KeyCacheObject, Object>() {
-                    private GridCacheVersion nextVer;
-
                     @Override public void apply(KeyCacheObject key, Object val) {
                         GridCacheVersion ver = misses0.remove(key);
 
                         assert ver != null : key;
 
                         if (val != null) {
-                            if (nextVer == null)
-                                nextVer = cacheCtx.versions().next();
-
                             CacheObject cacheVal = cacheCtx.toCacheObject(val);
 
                             while (true) {
                                 GridCacheEntryEx entry = cacheCtx.cache().entryEx(key);
 
                                 try {
-                                    boolean set = entry.versionedValue(cacheVal, ver, nextVer);
+                                    GridCacheVersion setVer = entry.versionedValue(cacheVal, ver, null);
+
+                                    boolean set = setVer != null;
 
                                     if (set)
-                                        ver = nextVer;
+                                        ver = setVer;
 
                                     if (log.isDebugEnabled())
                                         log.debug("Set value loaded from store into entry [set=" + set +
-                                            ", curVer=" + ver + ", newVer=" + nextVer + ", " +
+                                            ", curVer=" + ver + ", newVer=" + setVer + ", " +
                                             "entry=" + entry + ']');
 
                                     break;
@@ -1316,6 +1313,14 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
     }
 
     /**
+     * @param entry Entry.
+     * @return {@code True} if local node is current primary for given entry.
+     */
+    private boolean primaryLocal(GridCacheEntryEx entry) {
+        return entry.context().affinity().primary(cctx.localNode(), entry.partition(), AffinityTopologyVersion.NONE);
+    }
+
+    /**
      * Checks if there is a cached or swapped value for
      * {@link #getAllAsync(GridCacheContext, Collection, boolean, boolean, boolean, boolean)} method.
      *
@@ -1452,15 +1457,16 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                                 optimistic() ? accessPolicy(cacheCtx, txKey, expiryPlc) : null;
 
                             if (needReadVer) {
-                                T2<CacheObject, GridCacheVersion> res = entry.innerGetVersioned(this,
-                                    /*swap*/true,
-                                    /*unmarshal*/true,
-                                    /*metrics*/true,
-                                    /*event*/true,
-                                    CU.subjectId(this, cctx),
-                                    null,
-                                    resolveTaskName(),
-                                    accessPlc);
+                                T2<CacheObject, GridCacheVersion> res = primaryLocal(entry) ?
+                                    entry.innerGetVersioned(this,
+                                        /*swap*/true,
+                                        /*unmarshal*/true,
+                                        /*metrics*/true,
+                                        /*event*/true,
+                                        CU.subjectId(this, cctx),
+                                        null,
+                                        resolveTaskName(),
+                                        accessPlc) : null;
 
                                 if (res != null) {
                                     val = res.get1();
@@ -2129,15 +2135,16 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
                             if (optimistic() && !implicit()) {
                                 try {
                                     if (needReadVer) {
-                                        T2<CacheObject, GridCacheVersion> res = entry.innerGetVersioned(this,
-                                            /*swap*/false,
-                                            /*unmarshal*/retval,
-                                            /*metrics*/retval,
-                                            /*events*/retval,
-                                            CU.subjectId(this, cctx),
-                                            entryProcessor,
-                                            resolveTaskName(),
-                                            null);
+                                        T2<CacheObject, GridCacheVersion> res = primaryLocal(entry) ?
+                                            entry.innerGetVersioned(this,
+                                                /*swap*/false,
+                                                /*unmarshal*/retval,
+                                                /*metrics*/retval,
+                                                /*events*/retval,
+                                                CU.subjectId(this, cctx),
+                                                entryProcessor,
+                                                resolveTaskName(),
+                                                null) : null;
 
                                         if (res != null) {
                                             old = res.get1();

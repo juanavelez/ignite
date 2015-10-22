@@ -696,11 +696,11 @@ public interface GridCacheEntryEx {
      * @param val New value.
      * @param curVer Version to match or {@code null} if match is not required.
      * @param newVer Version to set.
-     * @return {@code True} if versioned matched.
+     * @return Non null version if value was set.
      * @throws IgniteCheckedException If index could not be updated.
      * @throws GridCacheEntryRemovedException If entry was removed.
      */
-    public boolean versionedValue(CacheObject val,
+    public GridCacheVersion versionedValue(CacheObject val,
         @Nullable GridCacheVersion curVer,
         @Nullable GridCacheVersion newVer)
         throws IgniteCheckedException, GridCacheEntryRemovedException;

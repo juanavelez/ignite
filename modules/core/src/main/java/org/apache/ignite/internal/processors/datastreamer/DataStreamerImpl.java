@@ -213,6 +213,9 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
     /** */
     private int maxRemapCnt = DFLT_MAX_REMAP_CNT;
 
+    /** */
+    private GridCacheVersion ver;
+
     /** Whether a warning at {@link DataStreamerImpl#allowOverwrite()} printed */
     private static boolean isWarningPrinted;
 
@@ -1242,8 +1245,16 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
             IgniteInternalFuture<Object> fut;
 
             if (isLocNode) {
-                fut = ctx.closure().callLocalSafe(
-                    new DataStreamerUpdateJob(ctx, log, cacheName, entries, false, skipStore, rcvr), false);
+                DataStreamerUpdateJob job = new DataStreamerUpdateJob(ctx,
+                    log,
+                    cacheName,
+                    entries,
+                    false,
+                    skipStore,
+                    rcvr,
+                    ver);
+
+                fut = ctx.closure().callLocalSafe(job, false);
 
                 locFuts.add(fut);
 
@@ -1277,6 +1288,9 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                         assert rcvr != null;
 
                         updaterBytes = ctx.config().getMarshaller().marshal(rcvr);
+
+                        if (rcvr == ISOLATED_UPDATER)
+                            ver = ctx.cache().context().versions().next();
                     }
 
                     if (topicBytes == null)
@@ -1337,7 +1351,8 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                     dep != null ? dep.participants() : null,
                     dep != null ? dep.classLoaderId() : null,
                     dep == null,
-                    topVer);
+                    topVer,
+                    ver);
 
                 try {
                     ctx.io().send(node, TOPIC_DATASTREAM, req, PUBLIC_POOL);
@@ -1537,7 +1552,7 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
     /**
      * Isolated receiver which only loads entry initial value.
      */
-    private static class IsolatedUpdater implements StreamReceiver<KeyCacheObject, CacheObject>,
+    static class IsolatedUpdater implements StreamReceiver<KeyCacheObject, CacheObject>,
         DataStreamerCacheUpdaters.InternalUpdater {
         /** */
         private static final long serialVersionUID = 0L;
@@ -1545,6 +1560,17 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
         /** {@inheritDoc} */
         @Override public void receive(IgniteCache<KeyCacheObject, CacheObject> cache,
             Collection<Map.Entry<KeyCacheObject, CacheObject>> entries) {
+            receive(cache, entries, null);
+        }
+
+        /**
+         * @param cache Cache.
+         * @param entries Entries.
+         * @param ver Entries version.
+         */
+        void receive(IgniteCache<KeyCacheObject, CacheObject> cache,
+            Collection<Map.Entry<KeyCacheObject, CacheObject>> entries,
+            GridCacheVersion ver) {
             IgniteCacheProxy<KeyCacheObject, CacheObject> proxy = (IgniteCacheProxy<KeyCacheObject, CacheObject>)cache;
 
             GridCacheAdapter<KeyCacheObject, CacheObject> internalCache = proxy.context().cache();
@@ -1556,7 +1582,8 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
 
             AffinityTopologyVersion topVer = cctx.affinity().affinityTopologyVersion();
 
-            GridCacheVersion ver = cctx.versions().next(topVer);
+            if (ver == null)
+                ver = cctx.versions().next(topVer);
 
             long ttl = CU.TTL_ETERNAL;
             long expiryTime = CU.EXPIRE_TIME_ETERNAL;

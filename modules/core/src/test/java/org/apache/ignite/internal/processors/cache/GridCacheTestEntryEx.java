@@ -670,8 +670,12 @@ public class GridCacheTestEntryEx extends GridMetadataAwareAdapter implements Gr
     }
 
     /** @inheritDoc */
-    @Override public boolean versionedValue(CacheObject val, GridCacheVersion curVer, GridCacheVersion newVer) {
-        assert false; return false;
+    @Override public GridCacheVersion versionedValue(CacheObject val,
+        GridCacheVersion curVer,
+        GridCacheVersion newVer) {
+        assert false;
+
+        return null;
     }
 
     /** @inheritDoc */

@@ -25,6 +25,7 @@ import org.apache.ignite.configuration.DeploymentMode;
 import org.apache.ignite.internal.GridDirectCollection;
 import org.apache.ignite.internal.GridDirectMap;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
+import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
 import org.apache.ignite.internal.util.typedef.internal.S;
 import org.apache.ignite.lang.IgniteUuid;
@@ -87,6 +88,9 @@ public class DataStreamerRequest implements Message {
     /** Topology version. */
     private AffinityTopologyVersion topVer;
 
+    /** */
+    private GridCacheVersion ver;
+
     /**
      * {@code Externalizable} support.
      */
@@ -109,6 +113,7 @@ public class DataStreamerRequest implements Message {
      * @param clsLdrId Class loader ID.
      * @param forceLocDep Force local deployment.
      * @param topVer Topology version.
+     * @param ver Entries version for {@link DataStreamerImpl.IsolatedUpdater}.
      */
     public DataStreamerRequest(long reqId,
         byte[] resTopicBytes,
@@ -123,7 +128,8 @@ public class DataStreamerRequest implements Message {
         Map<UUID, IgniteUuid> ldrParticipants,
         IgniteUuid clsLdrId,
         boolean forceLocDep,
-        @NotNull AffinityTopologyVersion topVer) {
+        @NotNull AffinityTopologyVersion topVer,
+        @Nullable GridCacheVersion ver) {
         assert topVer != null;
 
         this.reqId = reqId;
@@ -140,6 +146,14 @@ public class DataStreamerRequest implements Message {
         this.clsLdrId = clsLdrId;
         this.forceLocDep = forceLocDep;
         this.topVer = topVer;
+        this.ver = ver;
+    }
+
+    /**
+     * @return Version.
+     */
+    @Nullable public GridCacheVersion version() {
+        return ver;
     }
 
     /**
@@ -341,6 +355,12 @@ public class DataStreamerRequest implements Message {
 
                 writer.incrementState();
 
+            case 14:
+                if (!writer.writeMessage("ver", ver))
+                    return false;
+
+                writer.incrementState();
+
         }
 
         return true;
@@ -470,6 +490,14 @@ public class DataStreamerRequest implements Message {
 
                 reader.incrementState();
 
+            case 14:
+                ver = reader.readMessage("ver");
+
+                if (!reader.isLastRead())
+                    return false;
+
+                reader.incrementState();
+
         }
 
         return reader.afterMessageRead(DataStreamerRequest.class);
@@ -482,6 +510,6 @@ public class DataStreamerRequest implements Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 14;
+        return 15;
     }
 }

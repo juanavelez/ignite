@@ -689,14 +689,6 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
 
             tx.implicitSingleResult(ret);
         }
-        else if (prepErr instanceof IgniteTxOptimisticCheckedException) {
-            IgniteTxOptimisticCheckedException err = (IgniteTxOptimisticCheckedException)prepErr;
-
-            if (err.values() != null) {
-                for (Map.Entry<IgniteTxKey, CacheVersionedValue> e : err.values().entrySet())
-                    res.addOwnedValue(e.getKey(), e.getValue());
-            }
-        }
 
         res.filterFailedKeys(filterFailedKeys);
 
@@ -943,7 +935,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
                     entry.cached().unswap();
 
                     if (!entry.cached().checkSerializableReadVersion(serReadVer))
-                        return versionCheckError(entry, null);
+                        return versionCheckError(entry);
                 }
             }
         }
@@ -991,16 +983,14 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
 
     /**
      * @param entry Entry.
-     * @param vals Values.
      * @return Optimistic version check error.
      */
-    private IgniteTxOptimisticCheckedException versionCheckError(IgniteTxEntry entry,
-        Map<IgniteTxKey, CacheVersionedValue> vals) {
+    private IgniteTxOptimisticCheckedException versionCheckError(IgniteTxEntry entry) {
         GridCacheContext cctx = entry.context();
 
         return new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
             "read/write conflict [key=" + entry.key().value(cctx.cacheObjectContext(), false) +
-            ", cache=" + cctx.name() + ']', vals);
+            ", cache=" + cctx.name() + ']');
     }
 
     /**
@@ -1012,26 +1002,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
                 IgniteCheckedException err0 = null;
 
                 try {
-                    if (tx.nearOnOriginatingNode()) {
-                        Map<IgniteTxKey, CacheVersionedValue> vals;
+                    err0 = checkReadConflict(writes);
 
-                        vals = checkReadConflict(writes, null);
-                        vals = checkReadConflict(reads, vals);
-
-                        if (vals != null) {
-                            IgniteTxEntry entry = tx.entry(F.firstKey(vals));
-
-                            assert entry != null;
-
-                            err0 = versionCheckError(entry, vals);
-                        }
-                    }
-                    else {
-                        err0 = checkReadConflict(writes);
-
-                        if (err0 == null)
-                            err0 = checkReadConflict(reads);
-                    }
+                    if (err0 == null)
+                        err0 = checkReadConflict(reads);
                 }
                 catch (IgniteCheckedException e) {
                     U.error(log, "Failed to check entry version: " + e, e);

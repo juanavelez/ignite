@@ -3208,11 +3208,10 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
     }
 
     /** {@inheritDoc} */
-    @Override public synchronized boolean versionedValue(CacheObject val,
+    @Override public synchronized GridCacheVersion versionedValue(CacheObject val,
         GridCacheVersion curVer,
         GridCacheVersion newVer)
         throws IgniteCheckedException, GridCacheEntryRemovedException {
-        assert newVer != null;
 
         checkObsolete();
 
@@ -3220,33 +3219,34 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             GridCacheMvcc mvcc = mvccExtras();
 
             if (mvcc != null && !mvcc.isEmpty())
-                return false;
+                return null;
 
-            if (val != this.val) {
-                CacheObject old = rawGetOrUnmarshalUnlocked(false);
+            if (newVer == null)
+                newVer = cctx.versions().next();
 
-                long ttl = ttlExtras();
+            CacheObject old = rawGetOrUnmarshalUnlocked(false);
 
-                long expTime = CU.toExpireTime(ttl);
+            long ttl = ttlExtras();
 
-                // Detach value before index update.
-                val = cctx.kernalContext().cacheObjects().prepareForCache(val, cctx);
+            long expTime = CU.toExpireTime(ttl);
 
-                if (val != null) {
-                    updateIndex(val, expTime, newVer, old);
+            // Detach value before index update.
+            val = cctx.kernalContext().cacheObjects().prepareForCache(val, cctx);
 
-                    if (deletedUnlocked())
-                        deletedUnlocked(false);
-                }
+            if (val != null) {
+                updateIndex(val, expTime, newVer, old);
 
-                // Version does not change for load ops.
-                update(val, expTime, ttl, newVer);
+                if (deletedUnlocked())
+                    deletedUnlocked(false);
             }
 
-            return true;
+            // Version does not change for load ops.
+            update(val, expTime, ttl, newVer);
+
+            return newVer;
         }
 
-        return false;
+        return null;
     }
 
     /**

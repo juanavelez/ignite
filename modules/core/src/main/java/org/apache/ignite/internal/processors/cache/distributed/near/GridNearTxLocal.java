@@ -380,7 +380,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
             return cacheCtx.colocated().loadAsync(
                 keys,
                 readThrough,
-                /*force primary*/false,
+                /*force primary*/needVer,
                 topologyVersion(),
                 CU.subjectId(this, cctx),
                 resolveTaskName(),

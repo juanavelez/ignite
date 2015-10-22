@@ -187,9 +187,8 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
     /**
      * @param m Failed mapping.
      * @param e Error.
-     * @param res Response.
      */
-    private void onError(@Nullable GridDistributedTxMapping m, Throwable e, GridNearTxPrepareResponse res) {
+    private void onError(@Nullable GridDistributedTxMapping m, Throwable e) {
         if (X.hasCause(e, ClusterTopologyCheckedException.class) || X.hasCause(e, ClusterTopologyException.class)) {
             if (tx.onePhaseCommit()) {
                 tx.markForBackupCheck();
@@ -201,44 +200,6 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
         }
 
         if (e instanceof IgniteTxOptimisticCheckedException) {
-            if (res != null) {
-                assert m != null;
-
-                Map<IgniteTxKey, CacheVersionedValue> ownVals = res.ownedValues();
-
-                if (ownVals != null) {
-                    for (Map.Entry<IgniteTxKey, CacheVersionedValue> val : ownVals.entrySet()) {
-                        IgniteTxEntry txEntry = tx.entry(val.getKey());
-
-                        assert txEntry != null : val.getKey();
-
-                        GridCacheContext cctx = txEntry.context();
-
-                        if (cctx.isNear()) {
-                            GridNearCacheEntry entry = (GridNearCacheEntry)txEntry.cached();
-
-                            assert entry != null;
-
-                            while (true) {
-                                try {
-                                    CacheVersionedValue verVal = val.getValue();
-
-                                    entry.loadedValue(m.node().id(),
-                                        tx.topologyVersion(),
-                                        verVal.value(),
-                                        verVal.version());
-
-                                    break;
-                                }
-                                catch (GridCacheEntryRemovedException rmvErr) {
-                                    txEntry.cached(entry.context().cache().entryEx(entry.key()));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             if (m != null)
                 tx.removeMapping(m.node().id());
         }
@@ -324,14 +285,14 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                 if (tx.setRollbackOnly()) {
                     if (tx.timedOut())
                         onError(null, new IgniteTxTimeoutCheckedException("Transaction timed out and " +
-                            "was rolled back: " + this), null);
+                            "was rolled back: " + this));
                     else
                         onError(null, new IgniteCheckedException("Invalid transaction state for prepare " +
-                            "[state=" + tx.state() + ", tx=" + this + ']'), null);
+                            "[state=" + tx.state() + ", tx=" + this + ']'));
                 }
                 else
                     onError(null, new IgniteTxRollbackCheckedException("Invalid transaction state for " +
-                        "prepare [state=" + tx.state() + ", tx=" + this + ']'), null);
+                        "prepare [state=" + tx.state() + ", tx=" + this + ']'));
 
                 return;
             }
@@ -745,7 +706,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
          */
         void onResult(Throwable e) {
             if (rcvRes.compareAndSet(false, true)) {
-                onError(m, e, null);
+                onError(m, e);
 
                 if (log.isDebugEnabled())
                     log.debug("Failed to get future result [fut=" + this + ", err=" + e + ']');
@@ -769,7 +730,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                 if (log.isDebugEnabled())
                     log.debug("Remote node left grid while sending or waiting for reply (will not retry): " + this);
 
-                onError(null, e, null);
+                onError(null, e);
 
                 onDone(e);
             }
@@ -786,7 +747,7 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
             if (rcvRes.compareAndSet(false, true)) {
                 if (res.error() != null) {
                     // Fail the whole compound future.
-                    onError(m, res.error(), res);
+                    onError(m, res.error());
 
                     onDone(res.error());
                 }

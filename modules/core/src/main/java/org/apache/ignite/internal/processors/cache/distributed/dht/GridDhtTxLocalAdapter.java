@@ -189,13 +189,6 @@ public abstract class GridDhtTxLocalAdapter extends IgniteTxLocalAdapter {
     }
 
     /**
-     * @return {@code True} if originating node has a near cache that participates in this transaction.
-     */
-    public boolean nearOnOriginatingNode() {
-        return nearOnOriginatingNode;
-    }
-
-    /**
      * @return {@code True} if explicit lock transaction.
      */
     public boolean explicitLock() {

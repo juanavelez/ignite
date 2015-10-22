@@ -353,27 +353,6 @@ public class GridNearCacheEntry extends GridDistributedCacheEntry {
     }
 
     /**
-     * @param primaryNodeId Primary node ID.
-     * @param topVer Topology version.
-     * @param val Value.
-     * @param dhtVer DHT version received from remote node.
-     * @throws GridCacheEntryRemovedException If entry was removed.
-     */
-    synchronized public void loadedValue(UUID primaryNodeId,
-        AffinityTopologyVersion topVer,
-        CacheObject val,
-        GridCacheVersion dhtVer)
-        throws GridCacheEntryRemovedException {
-        checkObsolete();
-
-        if (recordDhtVersion(dhtVer)) {
-            primaryNode(primaryNodeId, topVer);
-
-            value(val);
-        }
-    }
-
-    /**
      * @param tx Transaction.
      * @param primaryNodeId Primary node ID.
      * @param val New value.
