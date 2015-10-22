@@ -115,15 +115,30 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                 if (entry.context().isLocal()) {
                     GridCacheVersion serReadVer = txEntry.serializableReadVersion();
 
-                    if (serReadVer != null && !entry.checkSerializableReadVersion(serReadVer)) {
+                    if (serReadVer != null) {
                         GridCacheContext ctx = entry.context();
 
-                        IgniteTxOptimisticCheckedException err0 =
-                            new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
-                            "read/write conflict [key=" + entry.key().value(ctx.cacheObjectContext(), false) +
-                            ", cache=" + ctx.name() + ']');
+                        while (true) {
+                            try {
+                                if (!entry.checkSerializableReadVersion(serReadVer)) {
+                                    Object key = entry.key().value(ctx.cacheObjectContext(), false);
 
-                        err.compareAndSet(null, err0);
+                                    IgniteTxOptimisticCheckedException err0 =
+                                        new IgniteTxOptimisticCheckedException("Failed to prepare transaction, " +
+                                            "read/write conflict [key=" + key + ", cache=" + ctx.name() + ']');
+
+                                    err.compareAndSet(null, err0);
+                                }
+
+                                break;
+                            }
+                            catch (GridCacheEntryRemovedException e) {
+                                entry = ctx.cache().entryEx(entry.key());
+
+                                txEntry.cached(entry);
+                            }
+                        }
+
                     }
                 }
 

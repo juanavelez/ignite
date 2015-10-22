@@ -2865,10 +2865,11 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
     }
 
     /** {@inheritDoc} */
-    @Override public synchronized boolean checkSerializableReadVersion(GridCacheVersion serReadVer) {
-        assert !obsolete() : this;
-
+    @Override public synchronized boolean checkSerializableReadVersion(GridCacheVersion serReadVer)
+        throws GridCacheEntryRemovedException {
         if (!serReadVer.equals(ver)) {
+            checkObsolete();
+
             boolean empty = isStartVersion() || deletedUnlocked();
 
             if (serReadVer.equals(IgniteTxEntry.SER_READ_EMPTY_ENTRY_VER))

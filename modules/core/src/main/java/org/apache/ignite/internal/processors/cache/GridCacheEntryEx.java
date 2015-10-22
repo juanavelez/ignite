@@ -603,8 +603,9 @@ public interface GridCacheEntryEx {
      *
      * @param serReadVer Version read in serializable transaction.
      * @return {@code True} if version check passed.
+     * @throws GridCacheEntryRemovedException If entry has been removed.
      */
-    public boolean checkSerializableReadVersion(GridCacheVersion serReadVer);
+    public boolean checkSerializableReadVersion(GridCacheVersion serReadVer) throws GridCacheEntryRemovedException;
 
     /**
      * Peeks into entry without loading value or updating statistics.
