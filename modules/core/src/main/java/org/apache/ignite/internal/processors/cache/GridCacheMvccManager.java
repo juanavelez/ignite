@@ -57,6 +57,7 @@ import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.P1;
 import org.apache.ignite.internal.util.typedef.X;
 import org.apache.ignite.internal.util.typedef.internal.S;
+import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.lang.IgniteFuture;
 import org.apache.ignite.lang.IgnitePredicate;
 import org.apache.ignite.lang.IgniteUuid;
@@ -766,6 +767,10 @@ public class GridCacheMvccManager extends GridCacheSharedManagerAdapter {
 
         if (prev != null) {
             prev.next(cand);
+
+            if (cand.threadId() != prev.threadId()) {
+                U.error(log, "Linking invalid candidate [cur=" + cand + ", prev=" + prev + "]", prev.added);
+            }
 
             cand.previous(prev);
         }
