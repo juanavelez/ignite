@@ -469,7 +469,8 @@ public class GridDhtPartitionDemander {
 
         ClusterNode node = cctx.node(id);
 
-        assert node != null;
+        if (node == null)
+            return;
 
         if (!fut.isActual(supply.updateSequence())) // Current future have another update sequence.
             return; // Supple message based on another future.
