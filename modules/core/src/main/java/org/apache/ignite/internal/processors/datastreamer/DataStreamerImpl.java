@@ -302,6 +302,8 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
         fut = new DataStreamerFuture(this);
 
         publicFut = new IgniteCacheFutureImpl<>(fut);
+
+        ver = ctx.cache().context().versions().nextForIsolatedStreamer();
     }
 
     /**
@@ -1252,7 +1254,7 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                     false,
                     skipStore,
                     rcvr,
-                    ver);
+                    rcvr == ISOLATED_UPDATER ? ver : null);
 
                 fut = ctx.closure().callLocalSafe(job, false);
 
@@ -1288,9 +1290,6 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                         assert rcvr != null;
 
                         updaterBytes = ctx.config().getMarshaller().marshal(rcvr);
-
-                        if (rcvr == ISOLATED_UPDATER)
-                            ver = ctx.cache().context().versions().next();
                     }
 
                     if (topicBytes == null)
@@ -1352,7 +1351,7 @@ public class DataStreamerImpl<K, V> implements IgniteDataStreamer<K, V>, Delayed
                     dep != null ? dep.classLoaderId() : null,
                     dep == null,
                     topVer,
-                    ver);
+                    rcvr == ISOLATED_UPDATER ? ver : null);
 
                 try {
                     ctx.io().send(node, TOPIC_DATASTREAM, req, PUBLIC_POOL);

@@ -3216,34 +3216,36 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         checkObsolete();
 
         if (curVer == null || curVer.equals(ver)) {
-            GridCacheMvcc mvcc = mvccExtras();
+            if (val != this.val) {
+                GridCacheMvcc mvcc = mvccExtras();
 
-            if (mvcc != null && !mvcc.isEmpty())
-                return null;
+                if (mvcc != null && !mvcc.isEmpty())
+                    return null;
 
-            if (newVer == null)
-                newVer = cctx.versions().next();
+                if (newVer == null)
+                    newVer = cctx.versions().next();
 
-            CacheObject old = rawGetOrUnmarshalUnlocked(false);
+                CacheObject old = rawGetOrUnmarshalUnlocked(false);
 
-            long ttl = ttlExtras();
+                long ttl = ttlExtras();
 
-            long expTime = CU.toExpireTime(ttl);
+                long expTime = CU.toExpireTime(ttl);
 
-            // Detach value before index update.
-            val = cctx.kernalContext().cacheObjects().prepareForCache(val, cctx);
+                // Detach value before index update.
+                val = cctx.kernalContext().cacheObjects().prepareForCache(val, cctx);
 
-            if (val != null) {
-                updateIndex(val, expTime, newVer, old);
+                if (val != null) {
+                    updateIndex(val, expTime, newVer, old);
 
-                if (deletedUnlocked())
-                    deletedUnlocked(false);
+                    if (deletedUnlocked())
+                        deletedUnlocked(false);
+                }
+
+                // Version does not change for load ops.
+                update(val, expTime, ttl, newVer);
+
+                return newVer;
             }
-
-            // Version does not change for load ops.
-            update(val, expTime, ttl, newVer);
-
-            return newVer;
         }
 
         return null;

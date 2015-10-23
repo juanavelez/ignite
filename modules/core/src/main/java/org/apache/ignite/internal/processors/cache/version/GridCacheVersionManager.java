@@ -149,6 +149,16 @@ public class GridCacheVersionManager extends GridCacheSharedManagerAdapter {
     }
 
     /**
+     * Version for entries loaded with isolated streamer, should be less than any version generated
+     * for entries update.
+     *
+     * @return Version for entries loaded with isolated streamer.
+     */
+    public GridCacheVersion nextForIsolatedStreamer() {
+        return next(0, true, false);
+    }
+
+    /**
      * @return Next version based on current topology.
      */
     public GridCacheVersion next() {

@@ -1657,6 +1657,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                     if (idx != null) {
                         GridDhtCacheEntry entry = entries.get(idx);
+
                         try {
                             GridCacheVersion ver = entry.version();
 
