@@ -1136,7 +1136,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             }
 
             if (cctx.isLocal() || cctx.isReplicated() ||
-                (!isNear() && !(tx != null && !tx.onePhaseCommit() && !tx.local())))
+                (!isNear() && !(tx != null && tx.onePhaseCommit() && !tx.local())))
                 cctx.continuousQueries().onEntryUpdated(this, key, val, old, tx.local(), false, updateIdx0, topVer);
 
             cctx.dataStructures().onEntryUpdated(key, false);
@@ -1303,7 +1303,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             }
 
             if (cctx.isLocal() || cctx.isReplicated() ||
-                (!isNear() && !(tx != null && !tx.onePhaseCommit() && !tx.local())))
+                (!isNear() && !(tx != null && tx.onePhaseCommit() && !tx.local())))
                 cctx.continuousQueries().onEntryUpdated(this, key, null, old, tx.local(), false, updateIdx0, topVer);
 
             cctx.dataStructures().onEntryUpdated(key, true);
