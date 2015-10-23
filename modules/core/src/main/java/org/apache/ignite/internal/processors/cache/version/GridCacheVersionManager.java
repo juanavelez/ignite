@@ -61,6 +61,9 @@ public class GridCacheVersionManager extends GridCacheSharedManagerAdapter {
     private long gridStartTime;
 
     /** */
+    private GridCacheVersion ISOLATED_STREAMER_VER;
+
+    /** */
     private final GridLocalEventListener discoLsnr = new GridLocalEventListener() {
         @Override public void onEvent(Event evt) {
             assert evt.type() == EVT_NODE_METRICS_UPDATED;
@@ -154,8 +157,19 @@ public class GridCacheVersionManager extends GridCacheSharedManagerAdapter {
      *
      * @return Version for entries loaded with isolated streamer.
      */
-    public GridCacheVersion nextForIsolatedStreamer() {
-        return next(0, true, false);
+    public GridCacheVersion isolatedStreamerVersion() {
+        if (ISOLATED_STREAMER_VER == null) {
+            long topVer = 1;
+
+            if (gridStartTime == 0)
+                gridStartTime = cctx.kernalContext().discovery().gridStartTime();
+
+            topVer += (gridStartTime - TOP_VER_BASE_TIME) / 1000;
+
+            ISOLATED_STREAMER_VER = new GridCacheVersion((int)topVer, 0, 0, 1, dataCenterId);
+        }
+
+        return ISOLATED_STREAMER_VER;
     }
 
     /**

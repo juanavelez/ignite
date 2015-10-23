@@ -38,7 +38,7 @@ import static org.apache.ignite.cache.CacheWriteSynchronizationMode.FULL_SYNC;
 /**
  *
  */
-public class DateStreamerUpdateAfterLoadTest extends GridCommonAbstractTest {
+public class DataStreamerUpdateAfterLoadTest extends GridCommonAbstractTest {
     /** */
     private static final TcpDiscoveryIpFinder IP_FINDER = new TcpDiscoveryVmIpFinder(true);
 

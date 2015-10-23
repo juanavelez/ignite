@@ -24,7 +24,6 @@ import org.apache.ignite.internal.GridKernalContext;
 import org.apache.ignite.internal.processors.cache.CacheObject;
 import org.apache.ignite.internal.processors.cache.GridCacheContext;
 import org.apache.ignite.internal.processors.cache.IgniteCacheProxy;
-import org.apache.ignite.internal.processors.cache.version.GridCacheVersion;
 import org.apache.ignite.internal.util.lang.GridPlainCallable;
 import org.apache.ignite.internal.util.typedef.C1;
 import org.apache.ignite.internal.util.typedef.F;
@@ -57,9 +56,6 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
     /** */
     private final StreamReceiver rcvr;
 
-    /** */
-    private final GridCacheVersion ver;
-
     /**
      * @param ctx Context.
      * @param log Log.
@@ -68,7 +64,6 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
      * @param ignoreDepOwnership {@code True} to ignore deployment ownership.
      * @param skipStore Skip store flag.
      * @param rcvr Updater.
-     * @param ver Entries version for {@link DataStreamerImpl.IsolatedUpdater}.
      */
     DataStreamerUpdateJob(
         GridKernalContext ctx,
@@ -77,8 +72,7 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
         Collection<DataStreamerEntry> col,
         boolean ignoreDepOwnership,
         boolean skipStore,
-        StreamReceiver<?, ?> rcvr,
-        @Nullable GridCacheVersion ver) {
+        StreamReceiver<?, ?> rcvr) {
         this.ctx = ctx;
         this.log = log;
 
@@ -90,7 +84,6 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
         this.ignoreDepOwnership = ignoreDepOwnership;
         this.skipStore = skipStore;
         this.rcvr = rcvr;
-        this.ver = ver;
     }
 
     /** {@inheritDoc} */
@@ -126,21 +119,17 @@ class DataStreamerUpdateJob implements GridPlainCallable<Object> {
                     checkSecurityPermission(SecurityPermission.CACHE_REMOVE);
             }
 
-            if (rcvr instanceof DataStreamerImpl.IsolatedUpdater)
-                ((DataStreamerImpl.IsolatedUpdater)rcvr).receive(cache, (Collection)col, ver);
-            else {
-                if (unwrapEntries()) {
-                    Collection<Map.Entry> col0 = F.viewReadOnly(col, new C1<DataStreamerEntry, Map.Entry>() {
-                        @Override public Map.Entry apply(DataStreamerEntry e) {
-                            return e.toEntry(cctx);
-                        }
-                    });
+            if (unwrapEntries()) {
+                Collection<Map.Entry> col0 = F.viewReadOnly(col, new C1<DataStreamerEntry, Map.Entry>() {
+                    @Override public Map.Entry apply(DataStreamerEntry e) {
+                        return e.toEntry(cctx);
+                    }
+                });
 
-                    rcvr.receive(cache, col0);
-                }
-                else
-                    rcvr.receive(cache, col);
+                rcvr.receive(cache, col0);
             }
+            else
+                rcvr.receive(cache, col);
 
             return null;
         }
