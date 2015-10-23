@@ -166,6 +166,10 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
     @GridDirectTransient
     private boolean transferExpiryPlc;
 
+    /** Partition update index. */
+    @GridDirectTransient
+    private long partIdx;
+
     /** Expiry policy bytes. */
     private byte[] expiryPlcBytes;
 
@@ -174,9 +178,6 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
      * GridCacheUtils.SKIP_STORE_FLAG_MASK - for skipStore flag value.
      */
     private byte flags;
-
-    /** Partition update index. */
-    private long partIdx;
 
     /**
      * Required by {@link Externalizable}
@@ -919,12 +920,6 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
                     return false;
 
                 writer.incrementState();
-
-            case 11:
-                if (!writer.writeLong("partIdx", partIdx))
-                    return false;
-
-                writer.incrementState();
         }
 
         return true;
@@ -1026,14 +1021,6 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
 
                 reader.incrementState();
 
-            case 11:
-                partIdx = reader.readLong("partIdx");
-
-                if (!reader.isLastRead())
-                    return false;
-
-                reader.incrementState();
-
         }
 
         return reader.afterMessageRead(IgniteTxEntry.class);
@@ -1046,7 +1033,7 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
 
     /** {@inheritDoc} */
     @Override public byte fieldsCount() {
-        return 12;
+        return 11;
     }
 
     /** {@inheritDoc} */
