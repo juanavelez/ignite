@@ -1772,7 +1772,7 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     filteredReaders = F.view(entry.readers(), F.notEqualTo(node.id()));
                 }
 
-                GridCacheUpdateAtomicResult updRes = entry.innerUpdate(
+                final GridCacheUpdateAtomicResult updRes = entry.innerUpdate(
                     ver,
                     node.id(),
                     locNodeId,
@@ -1804,6 +1804,25 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
                     dhtFut = createDhtFuture(ver, req, res, completionCb, true);
 
                     readersOnly = true;
+                }
+
+                if (!primary) {
+                    int z = 0;
+
+                    ++z;
+                }
+
+                if (updRes.contQryNtfy() != null) {
+                    if (primary && dhtFut != null) {
+                        dhtFut.listen(new CI1<IgniteInternalFuture<Void>>() {
+                            @Override public void apply(IgniteInternalFuture<Void> f) {
+                                if (f.isDone() && f.error() == null)
+                                        updRes.contQryNtfy().apply(f);
+                                }
+                            });
+                    }
+                    else
+                        updRes.contQryNtfy().apply(null);
                 }
 
                 if (dhtFut != null) {
@@ -2566,6 +2585,9 @@ public class GridDhtAtomicCache<K, V> extends GridDhtCacheAdapter<K, V> {
 
                         if (updRes.removeVersion() != null)
                             ctx.onDeferredDelete(entry, updRes.removeVersion());
+
+                        if (updRes.contQryNtfy() != null)
+                            updRes.contQryNtfy().apply(null);
 
                         entry.onUnlock();
 

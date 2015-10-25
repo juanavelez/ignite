@@ -33,6 +33,7 @@ import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheAtomicWriteOrderMode;
 import org.apache.ignite.cache.CacheMemoryMode;
 import org.apache.ignite.cache.eviction.EvictableEntry;
+import org.apache.ignite.internal.IgniteInternalFuture;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfo;
 import org.apache.ignite.internal.managers.deployment.GridDeploymentInfoBean;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
@@ -59,6 +60,7 @@ import org.apache.ignite.internal.util.lang.GridTuple3;
 import org.apache.ignite.internal.util.offheap.unsafe.GridUnsafeMemory;
 import org.apache.ignite.internal.util.tostring.GridToStringExclude;
 import org.apache.ignite.internal.util.tostring.GridToStringInclude;
+import org.apache.ignite.internal.util.typedef.CI1;
 import org.apache.ignite.internal.util.typedef.F;
 import org.apache.ignite.internal.util.typedef.T3;
 import org.apache.ignite.internal.util.typedef.internal.CU;
@@ -1705,6 +1707,12 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         CacheObject oldVal;
         CacheObject updated;
 
+        if (!primary) {
+            int z = 0;
+
+            ++z;
+        }
+
         GridCacheVersion enqueueVer = null;
 
         GridCacheVersionConflictContext<?, ?> conflictCtx = null;
@@ -1723,6 +1731,7 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
         Object updated0 = null;
 
         Long updateIdx0 = null;
+        CI1<IgniteInternalFuture<Void>> contQryNtf = null;
 
         synchronized (this) {
             boolean needVal = intercept || retval || op == GridCacheOperation.TRANSFORM || !F.isEmptyOrNulls(filter);
@@ -1832,7 +1841,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateIdx0 == null ? 0 : updateIdx0);
+                            updateIdx0 == null ? 0 : updateIdx0,
+                            null);
                     }
                     // Will update something.
                     else {
@@ -1909,8 +1919,23 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             if (updateIdx != null)
                                 updateIdx0 = updateIdx;
 
-                            cctx.continuousQueries().onEntryUpdated(this, key, evtVal, prevVal, primary, false,
-                                updateIdx0, topVer);
+                            final boolean primary0 = primary;
+                            final CacheObject prevVal0 = prevVal;
+                            final CacheObject evtVal0 = evtVal;
+                            final AffinityTopologyVersion topVer0 = topVer;
+                            final long updateIdx00 = updateIdx0;
+
+                            contQryNtf = new CI1<IgniteInternalFuture<Void>>() {
+                                @Override public void apply(IgniteInternalFuture<Void> voidIgniteInternalFuture) {
+                                    try {
+                                        cctx.continuousQueries().onEntryUpdated(GridCacheMapEntry.this, key, evtVal0,
+                                                prevVal0, primary0, false, updateIdx00, topVer0);
+                                    }
+                                    catch (IgniteCheckedException e) {
+                                        // No-op.
+                                    }
+                                }
+                            };
                         }
 
                         return new GridCacheUpdateAtomicResult(false,
@@ -1922,7 +1947,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateIdx0 == null ? 0 : updateIdx0);
+                            updateIdx0 == null ? 0 : updateIdx0,
+                            contQryNtf);
                     }
                 }
                 else
@@ -1999,7 +2025,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         null,
                         null,
                         false,
-                        updateIdx0 == null ? 0 : updateIdx0);
+                        updateIdx0 == null ? 0 : updateIdx0,
+                        null);
                 }
             }
 
@@ -2047,7 +2074,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                         null,
                         null,
                         false,
-                        updateIdx0 == null ? 0 : updateIdx);
+                        updateIdx0 == null ? 0 : updateIdx,
+                        null);
                 }
             }
             else
@@ -2148,7 +2176,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateIdx0 == null ? 0 : updateIdx0);
+                            updateIdx0 == null ? 0 : updateIdx0,
+                            null);
                     else if (interceptorVal != updated0) {
                         updated0 = cctx.unwrapTemporary(interceptorVal);
 
@@ -2230,7 +2259,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
                             null,
                             null,
                             false,
-                            updateIdx0 == null ? 0 : updateIdx0);
+                            updateIdx0 == null ? 0 : updateIdx0,
+                            null);
                 }
 
                 if (writeThrough)
@@ -2316,8 +2346,24 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             if (res)
                 updateMetrics(op, metrics);
 
-            if (!isNear())
-                cctx.continuousQueries().onEntryUpdated(this, key, val, oldVal, primary, false, updateIdx0, topVer);
+            if (!isNear()) {
+                final boolean primary0 = primary;
+                final CacheObject oldVal0 = oldVal;
+                final AffinityTopologyVersion topVer0 = topVer;
+                final long updateIdx00 = updateIdx0;
+
+                contQryNtf = new CI1<IgniteInternalFuture<Void>>() {
+                    @Override public void apply(IgniteInternalFuture<Void> voidIgniteInternalFuture) {
+                        try {
+                            cctx.continuousQueries().onEntryUpdated(GridCacheMapEntry.this, key, val, oldVal0, primary0,
+                                false, updateIdx00, topVer0);
+                        }
+                        catch (IgniteCheckedException e) {
+                            // No-op.
+                        }
+                    }
+                };
+            }
 
             cctx.dataStructures().onEntryUpdated(key, op == GridCacheOperation.DELETE);
 
@@ -2344,7 +2390,8 @@ public abstract class GridCacheMapEntry extends GridMetadataAwareAdapter impleme
             enqueueVer,
             conflictCtx,
             true,
-            updateIdx0);
+            updateIdx0,
+            contQryNtf);
     }
 
     /**
