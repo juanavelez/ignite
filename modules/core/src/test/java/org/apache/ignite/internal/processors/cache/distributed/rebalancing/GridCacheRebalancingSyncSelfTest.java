@@ -484,59 +484,59 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         log.info("Spend " + spend + " seconds to rebalance entries.");
     }
 
-    /**
-     * @throws Exception Exception.
-     */
-    public void testBackwardCompatibility() throws Exception {
-        Ignite ignite = startGrid(0);
-
-        Map<String, Object> map = new HashMap<>(ignite.cluster().localNode().attributes());
-
-        map.put(IgniteNodeAttributes.REBALANCING_VERSION, 0);
-
-        ((TcpDiscoveryNode)ignite.cluster().localNode()).setAttributes(map);
-
-        generateData(ignite, 0, 0);
-
-        startGrid(1);
-
-        waitForRebalancing(0, 2);
-        waitForRebalancing(1, 2);
-
-        checkData(grid(1), 0, 0);
-
-        startGrid(2);
-
-        waitForRebalancing(0, 3);
-        waitForRebalancing(1, 3);
-        waitForRebalancing(2, 3);
-
-        checkData(grid(1), 0, 0);
-
-        startGrid(3);
-
-        waitForRebalancing(0, 4);
-        waitForRebalancing(1, 4);
-        waitForRebalancing(2, 4);
-        waitForRebalancing(3, 4);
-
-        checkData(grid(1), 0, 0);
-
-        stopGrid(2);
-
-        waitForRebalancing(0, 5);
-        waitForRebalancing(1, 5);
-        waitForRebalancing(3, 5);
-
-        checkData(grid(1), 0, 0);
-
-        stopGrid(0);
-
-        waitForRebalancing(1, 6);
-        waitForRebalancing(3, 6);
-
-        checkData(grid(1), 0, 0);
-    }
+//    /**
+//     * @throws Exception Exception.
+//     */
+//    public void testBackwardCompatibility() throws Exception {
+//        Ignite ignite = startGrid(0);
+//
+//        Map<String, Object> map = new HashMap<>(ignite.cluster().localNode().attributes());
+//
+//        map.put(IgniteNodeAttributes.REBALANCING_VERSION, 0);
+//
+//        ((TcpDiscoveryNode)ignite.cluster().localNode()).setAttributes(map);
+//
+//        generateData(ignite, 0, 0);
+//
+//        startGrid(1);
+//
+//        waitForRebalancing(0, 2);
+//        waitForRebalancing(1, 2);
+//
+//        checkData(grid(1), 0, 0);
+//
+//        startGrid(2);
+//
+//        waitForRebalancing(0, 3);
+//        waitForRebalancing(1, 3);
+//        waitForRebalancing(2, 3);
+//
+//        checkData(grid(1), 0, 0);
+//
+//        startGrid(3);
+//
+//        waitForRebalancing(0, 4);
+//        waitForRebalancing(1, 4);
+//        waitForRebalancing(2, 4);
+//        waitForRebalancing(3, 4);
+//
+//        checkData(grid(1), 0, 0);
+//
+//        stopGrid(2);
+//
+//        waitForRebalancing(0, 5);
+//        waitForRebalancing(1, 5);
+//        waitForRebalancing(3, 5);
+//
+//        checkData(grid(1), 0, 0);
+//
+//        stopGrid(0);
+//
+//        waitForRebalancing(1, 6);
+//        waitForRebalancing(3, 6);
+//
+//        checkData(grid(1), 0, 0);
+//    }
 
     @Override protected void afterTest() throws Exception {
         super.afterTest();

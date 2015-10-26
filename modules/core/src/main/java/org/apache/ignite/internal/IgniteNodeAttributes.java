@@ -135,9 +135,6 @@ public final class IgniteNodeAttributes {
     /** Node consistent id. */
     public static final String ATTR_NODE_CONSISTENT_ID = ATTR_PREFIX + ".consistent.id";
 
-     /** Rebalancing version id. */
-    public static final String REBALANCING_VERSION = ATTR_PREFIX + ".rebalancing.version";
-
     /**
      * Enforces singleton.
      */
