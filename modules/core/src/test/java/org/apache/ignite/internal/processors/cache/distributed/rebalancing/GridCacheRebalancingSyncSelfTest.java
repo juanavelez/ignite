@@ -108,8 +108,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         cacheRCfg.setRebalanceBatchSize(1);
         cacheRCfg.setRebalanceBatchesCount(Integer.MAX_VALUE);
         ((TcpCommunicationSpi)iCfg.getCommunicationSpi()).setSharedMemoryPort(-1);//Shmem fix for Integer.MAX_VALUE.
-        //hang on o.a.i.i.util.nio.GridShmemCommunicationClient.sendMessage(GridShmemCommunicationClient.java:126)
-        //Todo: fix or create issue
 
         CacheConfiguration<Integer, Integer> cacheRCfg2 = new CacheConfiguration<>();
 
