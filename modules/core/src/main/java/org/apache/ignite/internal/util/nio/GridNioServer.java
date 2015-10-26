@@ -1445,7 +1445,7 @@ public class GridNioServer<T> {
                     // This exception will be handled in bodyInternal() method.
                     throw e;
                 }
-                catch (IOException e) {
+                catch (Exception e) {
                     if (!closed)
                         U.warn(log, "Failed to process selector key (will close): " + ses, e);
 
