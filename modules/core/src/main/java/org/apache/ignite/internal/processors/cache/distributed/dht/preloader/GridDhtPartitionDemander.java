@@ -33,9 +33,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantLock;
 import org.apache.ignite.IgniteCheckedException;
 import org.apache.ignite.IgniteLogger;
 import org.apache.ignite.cache.CacheRebalanceMode;
@@ -585,16 +583,10 @@ public class GridDhtPartitionDemander {
                     d, cctx.ioPolicy(), cctx.config().getRebalanceTimeout());
             }
         }
-        catch (ClusterTopologyCheckedException e) {
+        catch (IgniteCheckedException e) {
             if (log.isDebugEnabled())
                 log.debug("Node left during rebalancing [node=" + node.id() +
                     ", msg=" + e.getMessage() + ']');
-        }
-        catch (IgniteCheckedException ex) {
-            U.error(log, "Failed to receive partitions from node (rebalancing will not " +
-                "fully finish) [node=" + node.id() + ", msg=" + supply + ']', ex);
-
-            fut.cancel(node.id());
         }
     }
 
@@ -715,9 +707,6 @@ public class GridDhtPartitionDemander {
         /** Missed. */
         private final Map<UUID, Collection<Integer>> missed = new HashMap<>();
 
-        /** Lock. */
-        private final Lock lock = new ReentrantLock();
-
         /** Exchange future. */
         @GridToStringExclude
         private final GridDhtPartitionsExchangeFuture exchFut;
@@ -788,13 +777,8 @@ public class GridDhtPartitionDemander {
          * @param parts Parts.
          */
         private void appendPartitions(UUID nodeId, Collection<Integer> parts) {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 remaining.put(nodeId, new T2<>(U.currentTimeMillis(), parts));
-            }
-            finally {
-                lock.unlock();
             }
         }
 
@@ -802,9 +786,7 @@ public class GridDhtPartitionDemander {
          *
          */
         private void doneIfEmpty() {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 if (isDone())
                     return;
 
@@ -816,9 +798,6 @@ public class GridDhtPartitionDemander {
 
                 checkIsDone();
             }
-            finally {
-                lock.unlock();
-            }
         }
 
         /**
@@ -827,9 +806,7 @@ public class GridDhtPartitionDemander {
          * @return {@code true}.
          */
         @Override public boolean cancel() {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 if (isDone())
                     return true;
 
@@ -840,9 +817,6 @@ public class GridDhtPartitionDemander {
 
                 checkIsDone(true /* cancelled */);
             }
-            finally {
-                lock.unlock();
-            }
 
             return true;
         }
@@ -851,9 +825,7 @@ public class GridDhtPartitionDemander {
          * @param nodeId Node id.
          */
         private void cancel(UUID nodeId) {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 if (isDone())
                     return;
 
@@ -865,9 +837,6 @@ public class GridDhtPartitionDemander {
 
                 checkIsDone();
             }
-            finally {
-                lock.unlock();
-            }
 
         }
 
@@ -876,9 +845,7 @@ public class GridDhtPartitionDemander {
          * @param p P.
          */
         private void partitionMissed(UUID nodeId, int p) {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 if (isDone())
                     return;
 
@@ -887,9 +854,6 @@ public class GridDhtPartitionDemander {
 
                 missed.get(nodeId).add(p);
             }
-            finally {
-                lock.unlock();
-            }
         }
 
         /**
@@ -897,9 +861,7 @@ public class GridDhtPartitionDemander {
          * @param p P.
          */
         private void partitionDone(UUID nodeId, int p) {
-            lock.lock();
-
-            try {
+            synchronized (this) {
                 if (isDone())
                     return;
 
@@ -923,9 +885,6 @@ public class GridDhtPartitionDemander {
                 }
 
                 checkIsDone();
-            }
-            finally {
-                lock.unlock();
             }
         }
 
