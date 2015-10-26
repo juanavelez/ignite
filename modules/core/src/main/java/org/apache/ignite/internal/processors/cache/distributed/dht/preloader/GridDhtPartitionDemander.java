@@ -1065,12 +1065,11 @@ public class GridDhtPartitionDemander {
          * @param topVer Topology version.
          * @param d Demand message.
          * @param exchFut Exchange future.
-         * @return Missed partitions.
          * @throws InterruptedException If interrupted.
          * @throws ClusterTopologyCheckedException If node left.
          * @throws IgniteCheckedException If failed to send message.
          */
-        private Set<Integer> demandFromNode(
+        private void demandFromNode(
             ClusterNode node,
             final AffinityTopologyVersion topVer,
             GridDhtPartitionDemandMessage d,
@@ -1083,13 +1082,8 @@ public class GridDhtPartitionDemander {
             d.topic(topic(cntr));
             d.workerId(id);
 
-            Set<Integer> missed = new HashSet<>();
-
-            // Get the same collection that will be sent in the message.
-            Collection<Integer> remaining = d.partitions();
-
             if (topologyChanged(fut))
-                return missed;
+                return;
 
             cctx.io().addOrderedHandler(d.topic(), new CI2<UUID, GridDhtPartitionSupplyMessage>() {
                 @Override public void apply(UUID nodeId, GridDhtPartitionSupplyMessage msg) {
@@ -1106,7 +1100,7 @@ public class GridDhtPartitionDemander {
                     retry = false;
 
                     // Create copy.
-                    d = new GridDhtPartitionDemandMessage(d, remaining);
+                    d = new GridDhtPartitionDemandMessage(d, fut.remaining.get(node.id()).get2());
 
                     long timeout = cctx.config().getRebalanceTimeout();
 
@@ -1134,7 +1128,7 @@ public class GridDhtPartitionDemander {
                                 cctx.io().removeOrderedHandler(d.topic());
 
                                 // Must create copy to be able to work with IO manager thread local caches.
-                                d = new GridDhtPartitionDemandMessage(d, remaining);
+                                d = new GridDhtPartitionDemandMessage(d, fut.remaining.get(node.id()).get2());
 
                                 // Create new topic.
                                 d.topic(topic(++cntr));
@@ -1228,7 +1222,6 @@ public class GridDhtPartitionDemander {
                                         // If message was last for this partition,
                                         // then we take ownership.
                                         if (last) {
-                                            remaining.remove(p);
                                             fut.partitionDone(node.id(), p);
 
                                             top.own(part);
@@ -1247,7 +1240,6 @@ public class GridDhtPartitionDemander {
                                     }
                                 }
                                 else {
-                                    remaining.remove(p);
                                     fut.partitionDone(node.id(), p);
 
                                     if (log.isDebugEnabled())
@@ -1255,7 +1247,6 @@ public class GridDhtPartitionDemander {
                                 }
                             }
                             else {
-                                remaining.remove(p);
                                 fut.partitionDone(node.id(), p);
 
                                 if (log.isDebugEnabled())
@@ -1263,17 +1254,13 @@ public class GridDhtPartitionDemander {
                             }
                         }
 
-                        remaining.removeAll(s.supply().missed());
-
                         // Only request partitions based on latest topology version.
                         for (Integer miss : s.supply().missed()) {
                             if (cctx.affinity().localNode(miss, topVer))
-                                missed.add(miss);
-
-                            fut.partitionMissed(node.id(), miss);
+                                fut.partitionMissed(node.id(), miss);
                         }
 
-                        if (remaining.isEmpty())
+                        if (fut.remaining.get(node.id()) == null)
                             break; // While.
 
                         if (s.supply().ack()) {
@@ -1284,8 +1271,6 @@ public class GridDhtPartitionDemander {
                     }
                 }
                 while (retry && !topologyChanged(fut));
-
-                return missed;
             }
             finally {
                 cctx.io().removeOrderedHandler(d.topic());
@@ -1304,22 +1289,8 @@ public class GridDhtPartitionDemander {
 
                 AffinityTopologyVersion topVer = fut.topVer;
 
-                Collection<Integer> missed = new HashSet<>();
-
-                if (topologyChanged(fut)) {
-                    return;
-                }
-
                 try {
-                    Set<Integer> set = demandFromNode(node, topVer, d, exchFut);
-
-                    if (!set.isEmpty()) {
-                        if (log.isDebugEnabled())
-                            log.debug("Missed partitions from node [nodeId=" + node.id() + ", missed=" +
-                                set + ']');
-
-                        missed.addAll(set);
-                    }
+                    demandFromNode(node, topVer, d, exchFut);
                 }
                 catch (InterruptedException e) {
                     throw new IgniteCheckedException(e);
