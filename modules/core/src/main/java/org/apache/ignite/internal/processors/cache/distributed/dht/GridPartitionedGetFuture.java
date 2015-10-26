@@ -346,7 +346,6 @@ public class GridPartitionedGetFuture<K, V> extends CacheDistributedGetFutureAda
                     ver,
                     mappedKeys,
                     readThrough,
-                    false,
                     topVer,
                     subjId,
                     taskName == null ? 0 : taskName.hashCode(),

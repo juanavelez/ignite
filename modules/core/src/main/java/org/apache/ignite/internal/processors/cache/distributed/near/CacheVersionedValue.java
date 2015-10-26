@@ -53,7 +53,7 @@ public class CacheVersionedValue implements Message {
      * @param val Cache value.
      * @param ver Cache version.
      */
-    public CacheVersionedValue(CacheObject val, GridCacheVersion ver) {
+    CacheVersionedValue(CacheObject val, GridCacheVersion ver) {
         this.val = val;
         this.ver = ver;
     }

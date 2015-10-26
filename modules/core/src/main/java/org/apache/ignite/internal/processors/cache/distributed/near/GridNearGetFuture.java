@@ -355,7 +355,6 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     ver,
                     mappedKeys,
                     readThrough,
-                    false,
                     topVer,
                     subjId,
                     taskName == null ? 0 : taskName.hashCode(),

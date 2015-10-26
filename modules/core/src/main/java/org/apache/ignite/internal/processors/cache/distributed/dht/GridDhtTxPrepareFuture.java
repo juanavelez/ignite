@@ -50,7 +50,6 @@ import org.apache.ignite.internal.processors.cache.GridCacheSharedContext;
 import org.apache.ignite.internal.processors.cache.KeyCacheObject;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedCacheEntry;
 import org.apache.ignite.internal.processors.cache.distributed.GridDistributedTxMapping;
-import org.apache.ignite.internal.processors.cache.distributed.near.CacheVersionedValue;
 import org.apache.ignite.internal.processors.cache.distributed.near.GridNearTxPrepareResponse;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteInternalTx;
 import org.apache.ignite.internal.processors.cache.transactions.IgniteTxEntry;
@@ -947,41 +946,6 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     }
 
     /**
-     * @param entries Entries.
-     * @param vals Values map.
-     * @return Value map.
-     * @throws IgniteCheckedException If failed.
-     */
-    @Nullable private Map<IgniteTxKey, CacheVersionedValue> checkReadConflict(Collection<IgniteTxEntry> entries,
-        @Nullable Map<IgniteTxKey, CacheVersionedValue> vals) throws IgniteCheckedException {
-        try {
-            for (IgniteTxEntry entry : entries) {
-                GridCacheVersion serReadVer = entry.serializableReadVersion();
-
-                if (serReadVer != null) {
-                    entry.cached().unswap();
-
-                    if (!entry.cached().checkSerializableReadVersion(serReadVer)) {
-                        if (vals == null)
-                            vals = U.newHashMap(3);
-
-                        GridCacheEntryInfo info = entry.cached().info();
-
-                        assert info != null : entry.cached();
-
-                        vals.put(entry.txKey(), new CacheVersionedValue(info.value(), info.version()));
-                    }
-                }
-            }
-        }
-        catch (GridCacheEntryRemovedException e) {
-            assert false : "Got removed exception on entry with dht local candidate: " + entries;
-        }
-
-        return vals;
-    }
-
-    /**
      * @param entry Entry.
      * @return Optimistic version check error.
      */
@@ -999,7 +963,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     private void prepare0() {
         try {
             if (tx.optimistic() && tx.serializable()) {
-                IgniteCheckedException err0 = null;
+                IgniteCheckedException err0;
 
                 try {
                     err0 = checkReadConflict(writes);
