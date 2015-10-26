@@ -107,6 +107,7 @@ public class GridDhtPartitionDemander {
     private volatile GridDhtPartitionsExchangeFuture lastExchangeFut;
 
     /** Demand lock. */
+    @Deprecated//Backward compatibility. To be removed in future.
     private final ReadWriteLock demandLock;
 
     /**

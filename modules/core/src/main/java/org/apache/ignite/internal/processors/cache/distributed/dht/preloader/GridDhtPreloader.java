@@ -111,9 +111,6 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     private ConcurrentMap<AffinityTopologyVersion, GridDhtAssignmentFetchFuture> pendingAssignmentFetchFuts =
         new ConcurrentHashMap8<>();
 
-    /** Demand lock. */
-    private final ReadWriteLock demandLock = new ReentrantReadWriteLock();
-
     /** */
     private final Queue<GridDhtLocalPartition> partitionsToEvict = new ConcurrentLinkedDeque8<>();
 
@@ -204,7 +201,7 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
             });
 
         supplier = new GridDhtPartitionSupplier(cctx);
-        demander = new GridDhtPartitionDemander(cctx, demandLock);
+        demander = new GridDhtPartitionDemander(cctx, busyLock);
 
         supplier.start();
         demander.start();
@@ -397,13 +394,13 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     public void handleSupplyMessage(int idx, UUID id, final GridDhtPartitionSupplyMessageV2 s) {
-        demandLock.readLock().lock();
+        busyLock.readLock().lock();
 
         try {
             demander.handleSupplyMessage(idx, id, s);
         }
         finally {
-            demandLock.readLock().unlock();
+            busyLock.readLock().unlock();
         }
     }
 
@@ -720,13 +717,13 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     @Override public void unwindUndeploys() {
-        demandLock.writeLock().lock();
+        busyLock.writeLock().lock();
 
         try {
             cctx.deploy().unwind(cctx);
         }
         finally {
-            demandLock.writeLock().unlock();
+            busyLock.writeLock().unlock();
         }
     }
 
