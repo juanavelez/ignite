@@ -17,7 +17,6 @@
 
 package org.apache.ignite.internal.processors.cache.distributed.rebalancing;
 
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.ignite.Ignite;
 import org.apache.ignite.IgniteCheckedException;
@@ -26,7 +25,6 @@ import org.apache.ignite.cache.CacheRebalanceMode;
 import org.apache.ignite.configuration.CacheConfiguration;
 import org.apache.ignite.configuration.IgniteConfiguration;
 import org.apache.ignite.internal.IgniteEx;
-import org.apache.ignite.internal.IgniteNodeAttributes;
 import org.apache.ignite.internal.processors.affinity.AffinityTopologyVersion;
 import org.apache.ignite.internal.processors.cache.GridCacheAdapter;
 import org.apache.ignite.internal.processors.cache.distributed.dht.preloader.GridDhtPartitionDemander;
@@ -34,7 +32,6 @@ import org.apache.ignite.internal.util.typedef.G;
 import org.apache.ignite.internal.util.typedef.internal.U;
 import org.apache.ignite.spi.communication.tcp.TcpCommunicationSpi;
 import org.apache.ignite.spi.discovery.tcp.TcpDiscoverySpi;
-import org.apache.ignite.spi.discovery.tcp.internal.TcpDiscoveryNode;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.TcpDiscoveryIpFinder;
 import org.apache.ignite.spi.discovery.tcp.ipfinder.vm.TcpDiscoveryVmIpFinder;
 import org.apache.ignite.testframework.junits.common.GridCommonAbstractTest;
@@ -46,6 +43,7 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
     /** */
     protected static TcpDiscoveryIpFinder ipFinder = new TcpDiscoveryVmIpFinder(true);
 
+    /** */
     private static int TEST_SIZE = 100_000;
 
     /** partitioned cache name. */
@@ -68,8 +66,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
 
     /** */
     private volatile boolean concurrentStartFinished3;
-
-    private static long testTimeout = 5 * 60_000;
 
     /** {@inheritDoc} */
     @Override protected IgniteConfiguration getConfiguration(String gridName) throws Exception {
@@ -98,7 +94,7 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         cachePCfg2.setRebalanceMode(CacheRebalanceMode.SYNC);
         cachePCfg2.setBackups(1);
         cachePCfg2.setRebalanceOrder(2);
-        //cachePCfg2.setRebalanceDelay(5000);//Known issue, deadlock in case of low priority rebalancing delay.
+        //cachePCfg2.setRebalanceDelay(5000);//Known issue, possible deadlock in case of low priority cache rebalancing delayed.
 
         CacheConfiguration<Integer, Integer> cacheRCfg = new CacheConfiguration<>();
 
@@ -107,7 +103,7 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         cacheRCfg.setRebalanceMode(CacheRebalanceMode.SYNC);
         cacheRCfg.setRebalanceBatchSize(1);
         cacheRCfg.setRebalanceBatchesCount(Integer.MAX_VALUE);
-        ((TcpCommunicationSpi)iCfg.getCommunicationSpi()).setSharedMemoryPort(-1);//Shmem fix for Integer.MAX_VALUE.
+        ((TcpCommunicationSpi)iCfg.getCommunicationSpi()).setSharedMemoryPort(-1);//Shmem fail fix for Integer.MAX_VALUE.
 
         CacheConfiguration<Integer, Integer> cacheRCfg2 = new CacheConfiguration<>();
 
@@ -325,24 +321,8 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
         }
     }
 
-//    static{
-//        testTimeout = Integer.MAX_VALUE;
-//    }
-//    public void test() throws Exception {
-//        while (true) {
-//            testComplexRebalancing();
-
-//            stopAllGrids();
-//
-//            U.sleep(5000);
-//
-//            System.gc();
-//
-//        }
-//    }
-
     @Override protected long getTestTimeout() {
-        return testTimeout;
+        return 5 * 60_000;
     }
 
     /**
@@ -483,60 +463,6 @@ public class GridCacheRebalancingSyncSelfTest extends GridCommonAbstractTest {
 
         log.info("Spend " + spend + " seconds to rebalance entries.");
     }
-
-//    /**
-//     * @throws Exception Exception.
-//     */
-//    public void testBackwardCompatibility() throws Exception {
-//        Ignite ignite = startGrid(0);
-//
-//        Map<String, Object> map = new HashMap<>(ignite.cluster().localNode().attributes());
-//
-//        map.put(IgniteNodeAttributes.REBALANCING_VERSION, 0);
-//
-//        ((TcpDiscoveryNode)ignite.cluster().localNode()).setAttributes(map);
-//
-//        generateData(ignite, 0, 0);
-//
-//        startGrid(1);
-//
-//        waitForRebalancing(0, 2);
-//        waitForRebalancing(1, 2);
-//
-//        checkData(grid(1), 0, 0);
-//
-//        startGrid(2);
-//
-//        waitForRebalancing(0, 3);
-//        waitForRebalancing(1, 3);
-//        waitForRebalancing(2, 3);
-//
-//        checkData(grid(1), 0, 0);
-//
-//        startGrid(3);
-//
-//        waitForRebalancing(0, 4);
-//        waitForRebalancing(1, 4);
-//        waitForRebalancing(2, 4);
-//        waitForRebalancing(3, 4);
-//
-//        checkData(grid(1), 0, 0);
-//
-//        stopGrid(2);
-//
-//        waitForRebalancing(0, 5);
-//        waitForRebalancing(1, 5);
-//        waitForRebalancing(3, 5);
-//
-//        checkData(grid(1), 0, 0);
-//
-//        stopGrid(0);
-//
-//        waitForRebalancing(1, 6);
-//        waitForRebalancing(3, 6);
-//
-//        checkData(grid(1), 0, 0);
-//    }
 
     @Override protected void afterTest() throws Exception {
         super.afterTest();
