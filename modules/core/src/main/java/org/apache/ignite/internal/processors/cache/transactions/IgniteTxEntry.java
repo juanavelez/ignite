@@ -745,13 +745,13 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
         if (filters != null) {
             for (CacheEntryPredicate p : filters) {
                 if (p != null)
-                    p.prepareMarshal(ctx.cacheContext(cacheId));
+                    p.prepareMarshal(this.ctx);
             }
         }
 
         // Do not serialize filters if they are null.
         if (transformClosBytes == null && entryProcessorsCol != null)
-            transformClosBytes = CU.marshal(ctx, entryProcessorsCol);
+            transformClosBytes = CU.marshal(this.ctx, entryProcessorsCol);
 
         if (transferExpiry)
             transferExpiryPlc = expiryPlc != null && expiryPlc != this.ctx.expiry();
@@ -760,7 +760,7 @@ public class IgniteTxEntry implements GridPeerDeployAware, Message {
 
         val.marshal(ctx, context());
 
-        expiryPlcBytes = transferExpiryPlc ?  CU.marshal(ctx, new IgniteExternalizableExpiryPolicy(expiryPlc)) : null;
+        expiryPlcBytes = transferExpiryPlc ?  CU.marshal(this.ctx, new IgniteExternalizableExpiryPolicy(expiryPlc)) : null;
     }
 
     /**

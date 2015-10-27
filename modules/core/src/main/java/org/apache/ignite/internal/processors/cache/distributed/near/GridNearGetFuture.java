@@ -359,7 +359,8 @@ public final class GridNearGetFuture<K, V> extends CacheDistributedGetFutureAdap
                     subjId,
                     taskName == null ? 0 : taskName.hashCode(),
                     expiryPlc != null ? expiryPlc.forAccess() : -1L,
-                    skipVals);
+                    skipVals,
+                    cctx.deploymentEnabled());
 
                 add(fut); // Append new future.
 

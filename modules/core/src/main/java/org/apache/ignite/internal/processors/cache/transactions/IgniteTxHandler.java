@@ -242,7 +242,8 @@ public class IgniteTxHandler {
                         req.version(),
                         null,
                         e,
-                        null);
+                        null,
+                        req.deployInfo() != null);
                 }
             }
         });
@@ -328,7 +329,8 @@ public class IgniteTxHandler {
                         req.version(),
                         null,
                         null,
-                        top.topologyVersion());
+                        top.topologyVersion(),
+                        req.deployInfo() != null);
 
                     try {
                         ctx.io().send(nearNode, res, req.policy());
@@ -789,7 +791,7 @@ public class IgniteTxHandler {
         GridDhtTxPrepareResponse res;
 
         try {
-            res = new GridDhtTxPrepareResponse(req.version(), req.futureId(), req.miniId());
+            res = new GridDhtTxPrepareResponse(req.version(), req.futureId(), req.miniId(), req.deployInfo() != null);
 
             // Start near transaction first.
             nearTx = !F.isEmpty(req.nearWrites()) ? startNearRemoteTx(ctx.deploy().globalLoader(), nodeId, req) : null;
@@ -835,7 +837,8 @@ public class IgniteTxHandler {
             if (nearTx != null)
                 nearTx.rollback();
 
-            res = new GridDhtTxPrepareResponse(req.version(), req.futureId(), req.miniId(), e);
+            res = new GridDhtTxPrepareResponse(req.version(), req.futureId(), req.miniId(), e,
+                req.deployInfo() != null);
         }
 
         try {
@@ -1346,7 +1349,8 @@ public class IgniteTxHandler {
         GridCacheTxRecoveryRequest req,
         boolean prepared) {
         GridCacheTxRecoveryResponse res =
-            new GridCacheTxRecoveryResponse(req.version(), req.futureId(), req.miniId(), prepared);
+            new GridCacheTxRecoveryResponse(req.version(), req.futureId(), req.miniId(), prepared,
+                req.deployInfo() != null);
 
         try {
             if (log.isDebugEnabled())

@@ -115,6 +115,7 @@ public class GridNearGetRequest extends GridCacheMessage implements GridCacheDep
      * @param subjId Subject ID.
      * @param taskNameHash Task name hash.
      * @param accessTtl New TTL to set after entry is accessed, -1 to leave unchanged.
+     * @param addDepInfo Deployment info.
      */
     public GridNearGetRequest(
         int cacheId,
@@ -127,7 +128,8 @@ public class GridNearGetRequest extends GridCacheMessage implements GridCacheDep
         UUID subjId,
         int taskNameHash,
         long accessTtl,
-        boolean skipVals
+        boolean skipVals,
+        boolean addDepInfo
     ) {
         assert futId != null;
         assert miniId != null;
@@ -146,6 +148,7 @@ public class GridNearGetRequest extends GridCacheMessage implements GridCacheDep
         this.taskNameHash = taskNameHash;
         this.accessTtl = accessTtl;
         this.skipVals = skipVals;
+        this.addDepInfo = addDepInfo;
     }
 
     /**
@@ -266,6 +269,11 @@ public class GridNearGetRequest extends GridCacheMessage implements GridCacheDep
             while (keysIt.hasNext())
                 keyMap.put(keysIt.next(), flagsIt.next());
         }
+    }
+
+    /** {@inheritDoc} */
+    @Override public boolean addDeploymentInfo() {
+        return addDepInfo;
     }
 
     /** {@inheritDoc} */
