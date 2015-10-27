@@ -107,6 +107,9 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
     /** Busy lock to prevent activities from accessing exchanger while it's stopping. */
     private final ReadWriteLock busyLock = new ReentrantReadWriteLock();
 
+    /** Demand lock. */
+    private final ReadWriteLock demandLock = new ReentrantReadWriteLock();
+
     /** Pending affinity assignment futures. */
     private ConcurrentMap<AffinityTopologyVersion, GridDhtAssignmentFetchFuture> pendingAssignmentFetchFuts =
         new ConcurrentHashMap8<>();
@@ -394,25 +397,33 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     public void handleSupplyMessage(int idx, UUID id, final GridDhtPartitionSupplyMessageV2 s) {
-        busyLock.readLock().lock();
+        if (!enterBusy())
+            return;
 
         try {
-            demander.handleSupplyMessage(idx, id, s);
+            demandLock.readLock().lock();
+            try {
+                demander.handleSupplyMessage(idx, id, s);
+            }
+            finally {
+                demandLock.readLock().unlock();
+            }
         }
         finally {
-            busyLock.readLock().unlock();
+            leaveBusy();
         }
     }
 
     /** {@inheritDoc} */
     public void handleDemandMessage(int idx, UUID id, GridDhtPartitionDemandMessage d) {
-        busyLock.readLock().lock();
+        if (!enterBusy())
+            return;
 
         try {
             supplier.handleDemandMessage(idx, id, d);
         }
         finally {
-            busyLock.readLock().unlock();
+            leaveBusy();
         }
     }
 
@@ -724,13 +735,13 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     @Override public void unwindUndeploys() {
-        busyLock.writeLock().lock();
+        demandLock.writeLock().lock();
 
         try {
             cctx.deploy().unwind(cctx);
         }
         finally {
-            busyLock.writeLock().unlock();
+            demandLock.writeLock().unlock();
         }
     }
 
