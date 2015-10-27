@@ -650,7 +650,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                                     try {
                                         fut.get();
 
-                                        remap(res);
+                                        remap();
                                     }
                                     catch (IgniteCheckedException e) {
                                         onDone(e);
@@ -659,7 +659,7 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                             });
                         }
                         else
-                            remap(res);
+                            remap();
                     }
                     else {
                         onPrepareResponse(m, res);
@@ -669,19 +669,19 @@ public class GridNearOptimisticTxPrepareFuture extends GridNearOptimisticTxPrepa
                             proceedPrepare(mappings);
 
                         // Finish this mini future.
-                        onDone(res);
+                        onDone((GridNearTxPrepareResponse)null);
                     }
                 }
             }
         }
 
         /**
-         * @param res Response.
+         *
          */
-        private void remap(final GridNearTxPrepareResponse res) {
+        private void remap() {
             prepareOnTopology(true, new Runnable() {
                 @Override public void run() {
-                    onDone(res);
+                    onDone((GridNearTxPrepareResponse)null);
                 }
             });
         }
