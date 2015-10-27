@@ -1361,7 +1361,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
 
         AffinityTopologyVersion topVer = topologyVersion();
 
-        boolean needReadVer = optimistic() && serializable();
+        boolean needReadVer = serializable() && optimistic();
 
         // In this loop we cover only read-committed or optimistic transactions.
         // Transactions that are pessimistic and not read-committed are covered
@@ -1619,7 +1619,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
         if (log.isDebugEnabled())
             log.debug("Loading missed values for missed map: " + missedMap);
 
-        final boolean needReadVer = optimistic() && serializable();
+        final boolean needReadVer = serializable() && optimistic();
 
         return new GridEmbeddedFuture<>(
             new C2<Void, Exception, Map<K, V>>() {
@@ -2058,7 +2058,7 @@ public abstract class IgniteTxLocalAdapter extends IgniteTxAdapter
 
         final boolean hasFilters = !F.isEmptyOrNulls(filter) && !F.isAlwaysTrue(filter);
         final boolean needVal = singleRmv || retval || hasFilters;
-        final boolean needReadVer = needVal && (optimistic() && serializable());
+        final boolean needReadVer = needVal && (serializable() && optimistic());
 
         try {
             // Set transform flag for transaction.

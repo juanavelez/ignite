@@ -908,7 +908,7 @@ public class GridNearTxLocal extends GridDhtTxLocalAdapter {
         try {
             // At this point all the entries passed in must be enlisted in transaction because this is an
             // optimistic transaction.
-            optimisticLockEntries = optimistic() && serializable() ? F.concat(false, writes, reads) : writes;
+            optimisticLockEntries = (serializable() && optimistic()) ? F.concat(false, writes, reads) : writes;
 
             userPrepare();
 

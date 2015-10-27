@@ -595,13 +595,19 @@ public final class GridCacheMvcc {
             serOrder
         );
 
-        if (!add0(cand)) {
-            assert serOrder != null : cand;
+        if (serOrder == null) {
+            cctx.mvcc().addLocal(cand);
 
-            return null;
+            boolean add = add0(cand);
+
+            assert add : cand;
         }
+        else {
+            if (!add0(cand))
+                return null;
 
-        cctx.mvcc().addLocal(cand);
+            cctx.mvcc().addLocal(cand);
+        }
 
         return cand;
     }
@@ -940,20 +946,22 @@ public final class GridCacheMvcc {
             }
         }
 
-        if (locs != null && !locs.isEmpty()) {
-            GridCacheMvccCandidate first = locs.getFirst();
-
-            if (first.serializable()) {
-                if (first.owner() || !first.ready())
-                    return;
-
-                first.setOwner();
-
-                return;
-            }
+        if (locs != null) {
+            boolean first = true;
 
             for (ListIterator<GridCacheMvccCandidate> it = locs.listIterator(); it.hasNext(); ) {
                 GridCacheMvccCandidate cand = it.next();
+
+                if (first && cand.serializable()) {
+                    if (cand.owner() || !cand.ready())
+                        return;
+
+                    cand.setOwner();
+
+                    return;
+                }
+
+                first = false;
 
                 if (cand.owner())
                     return;

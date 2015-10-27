@@ -172,7 +172,6 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
      * @return New candidate.
      * @throws GridCacheEntryRemovedException If entry has been removed.
      * @throws GridDistributedLockCancelledException If lock was cancelled.
-     * @throws IgniteCheckedException If failed.
      */
     @Nullable public GridCacheMvccCandidate addDhtLocal(
         UUID nearNodeId,
@@ -186,7 +185,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
         boolean reenter,
         boolean tx,
         boolean implicitSingle)
-        throws GridCacheEntryRemovedException, GridDistributedLockCancelledException, IgniteCheckedException
+        throws GridCacheEntryRemovedException, GridDistributedLockCancelledException
     {
         assert serReadVer == null || serOrder != null;
         assert !reenter || serOrder == null;
@@ -263,8 +262,9 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
     /** {@inheritDoc} */
     @Override public boolean tmLock(IgniteInternalTx tx,
         long timeout,
+        @Nullable GridCacheVersion serOrder,
         GridCacheVersion serReadVer)
-        throws GridCacheEntryRemovedException, GridDistributedLockCancelledException, IgniteCheckedException {
+        throws GridCacheEntryRemovedException, GridDistributedLockCancelledException {
         if (tx.local()) {
             GridDhtTxLocalAdapter dhtTx = (GridDhtTxLocalAdapter)tx;
 
@@ -275,7 +275,7 @@ public class GridDhtCacheEntry extends GridDistributedCacheEntry {
                 tx.topologyVersion(),
                 tx.threadId(),
                 tx.xidVersion(),
-                (tx.optimistic() && tx.serializable()) ? tx.nearXidVersion() : null,
+                serOrder,
                 serReadVer,
                 timeout,
                 /*reenter*/false,

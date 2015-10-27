@@ -996,7 +996,10 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
      * @return {@code True} if transaction read entries should be unlocked.
      */
     private boolean unlockReadEntries(IgniteInternalTx tx) {
-        return (tx.pessimistic() && !tx.readCommitted()) || (tx.optimistic() && tx.serializable());
+        if (tx.pessimistic())
+            return !tx.readCommitted();
+        else
+            return tx.serializable();
     }
 
     /**
@@ -1381,6 +1384,8 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
         // we wait for the lock.
         long timeout = tx.timeout() == 0 ? 0 : remainingTime;
 
+        GridCacheVersion serOrder = (tx.serializable() && tx.optimistic()) ? tx.nearXidVersion() : null;
+
         for (IgniteTxEntry txEntry1 : entries) {
             // Check if this entry was prepared before.
             if (!txEntry1.markPrepared() || txEntry1.explicitVersion() != null)
@@ -1399,7 +1404,7 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
                     assert serReadVer == null || (tx.optimistic() && tx.serializable()) : txEntry1;
 
-                    if (!entry1.tmLock(tx, timeout, serReadVer)) {
+                    if (!entry1.tmLock(tx, timeout, serOrder, serReadVer)) {
                         // Unlock locks locked so far.
                         for (IgniteTxEntry txEntry2 : entries) {
                             if (txEntry2 == txEntry1)
@@ -1432,11 +1437,6 @@ public class IgniteTxManager extends GridCacheSharedManagerAdapter {
 
                         break;
                     }
-                }
-                catch (IgniteCheckedException e) {
-                    tx.setRollbackOnly();
-
-                    throw e;
                 }
                 catch (GridDistributedLockCancelledException ignore) {
                     tx.setRollbackOnly();

@@ -143,10 +143,10 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
     private AtomicBoolean mapped = new AtomicBoolean(false);
 
     /** Prepare reads. */
-    private Collection<IgniteTxEntry> reads;
+    private Iterable<IgniteTxEntry> reads;
 
     /** Prepare writes. */
-    private Collection<IgniteTxEntry> writes;
+    private Iterable<IgniteTxEntry> writes;
 
     /** Tx nodes. */
     private Map<UUID, Collection<UUID>> txNodes;
@@ -471,7 +471,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
 
         readyLocks(writes);
 
-        if (tx.optimistic() && tx.serializable())
+        if (tx.serializable() && tx.optimistic())
             readyLocks(reads);
 
         locksReady = true;
@@ -817,7 +817,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
         this.writes = writes;
         this.txNodes = txNodes;
 
-        boolean ser = tx.optimistic() && tx.serializable();
+        boolean ser = tx.serializable() && tx.optimistic();
 
         if (!F.isEmpty(writes) || (ser && !F.isEmpty(reads))) {
             Map<Integer, Collection<KeyCacheObject>> forceKeys = null;
@@ -924,7 +924,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
      * @return Not null exception if version check failed.
      * @throws IgniteCheckedException If failed.
      */
-    @Nullable private IgniteCheckedException checkReadConflict(Collection<IgniteTxEntry> entries)
+    @Nullable private IgniteCheckedException checkReadConflict(Iterable<IgniteTxEntry> entries)
         throws IgniteCheckedException {
         try {
             for (IgniteTxEntry entry : entries) {
@@ -962,7 +962,7 @@ public final class GridDhtTxPrepareFuture extends GridCompoundFuture<IgniteInter
      */
     private void prepare0() {
         try {
-            if (tx.optimistic() && tx.serializable()) {
+            if (tx.serializable() && tx.optimistic()) {
                 IgniteCheckedException err0;
 
                 try {
