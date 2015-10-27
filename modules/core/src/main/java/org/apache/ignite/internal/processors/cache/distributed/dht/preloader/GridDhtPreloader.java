@@ -406,7 +406,14 @@ public class GridDhtPreloader extends GridCachePreloaderAdapter {
 
     /** {@inheritDoc} */
     public void handleDemandMessage(int idx, UUID id, GridDhtPartitionDemandMessage d) {
-        supplier.handleDemandMessage(idx, id, d);
+        busyLock.readLock().lock();
+
+        try {
+            supplier.handleDemandMessage(idx, id, d);
+        }
+        finally {
+            busyLock.readLock().unlock();
+        }
     }
 
     /** {@inheritDoc} */
