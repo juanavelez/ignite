@@ -840,8 +840,8 @@ public class GridNearOptimisticSerializableTxPrepareFuture extends GridNearOptim
                     else {
                         onPrepareResponse(m, res);
 
-                        // Finish this mini future.
-                        onDone(res);
+                        // Finish this mini future (need result only on client node).
+                        onDone(cctx.kernalContext().clientNode() ? res : null);
                     }
                 }
             }
