@@ -588,9 +588,6 @@ public class GridDhtPartitionDemander {
                 log.debug("Node left during rebalancing [node=" + node.id() +
                     ", msg=" + e.getMessage() + ']');
         }
-        catch (IllegalStateException e) {
-            U.error(log, "Failed to handle supply message.", e);//grid is stopping.
-        }
     }
 
     /**
